@@ -4,6 +4,7 @@ const ICON_MENU = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" s
 const ICON_SUN = `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="7" cy="7" r="2.5"/><path d="M7 1v1.5M7 11.5V13M1 7h1.5M11.5 7H13M3.05 3.05l1.06 1.06M9.89 9.89l1.06 1.06M9.89 4.11l1.06-1.06M3.05 10.95l1.06-1.06"/></svg>`;
 const ICON_MOON = `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11.5 8.5A5.5 5.5 0 015.5 2a5.5 5.5 0 100 11 5.5 5.5 0 006-4.5z"/></svg>`;
 const ICON_SEND = `<svg width="32" height="32" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 16h20M18 8l8 8-8 8"/></svg>`;
+const ICON_WIFI_OFF = `<svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 1l11 11"/><path d="M9.2 4.3A6 6 0 0112 6.5M1 6.5a6 6 0 013.3-2.6M6.5 10a1 1 0 010 2 1 1 0 010-2z"/><path d="M3.8 7.7A3.5 3.5 0 019 7"/></svg>`;
 
 import './sidebar-nav.js';
 import './request-editor.js';
@@ -107,6 +108,31 @@ template.innerHTML = `
       transition: background 0.15s;
     }
     .theme-btn:hover { background: var(--color-surface-3); }
+    .net-badge {
+      display: none;
+      align-items: center;
+      gap: 5px;
+      padding: 2px 8px 2px 6px;
+      border-radius: var(--radius-full);
+      font-size: 11px;
+      font-weight: 500;
+      background: var(--color-error-muted);
+      color: var(--color-error);
+      border: 1px solid rgba(239, 68, 68, 0.25);
+    }
+    .net-badge.offline { display: flex; }
+    .net-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--color-error);
+      flex-shrink: 0;
+      animation: net-pulse 1.8s ease-in-out infinite;
+    }
+    @keyframes net-pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
     .workspace {
       flex: 1;
       display: grid;
@@ -188,6 +214,10 @@ template.innerHTML = `
       <div class="topbar">
         <div class="menu-btn" id="menu-btn" title="菜单">${ICON_MENU}</div>
         <span class="topbar-title" id="topbar-title">Hello API</span>
+        <div class="net-badge" id="net-badge">
+          <div class="net-dot"></div>
+          <span>已离线</span>
+        </div>
         <div class="env-badge" id="env-badge" title="切换环境">
           <div class="env-dot" id="env-dot"></div>
           <span id="env-name">无环境</span>
@@ -222,6 +252,15 @@ class AppShell extends HTMLElement {
   }
 
   #bindEvents() {
+    // Network status
+    const netBadge = this.shadowRoot.getElementById('net-badge');
+    const syncNet = () => {
+      netBadge.classList.toggle('offline', !navigator.onLine);
+    };
+    syncNet();
+    window.addEventListener('online', syncNet);
+    window.addEventListener('offline', syncNet);
+
     // Mobile menu
     this.shadowRoot.getElementById('menu-btn').addEventListener('click', () => this.#openSidebar());
     this.shadowRoot

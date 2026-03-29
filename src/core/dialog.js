@@ -124,6 +124,21 @@ function ensureStyles() {
       border-color: #dc2626;
       color: #fff;
     }
+    .app-dialog__fields {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .app-dialog__field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .app-dialog__label {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--color-text-secondary);
+    }
   `;
   document.head.appendChild(style);
 }
@@ -235,6 +250,70 @@ export function showConfirm(message, { confirmLabel = '确认', danger = false, 
 
     el.showModal();
     el.querySelector('#app-dialog-confirm').focus();
+  });
+}
+
+/**
+ * Show a multi-field form dialog. Returns an object {fieldId: value} or null if cancelled.
+ * @param {string} title
+ * @param {Array<{id:string, label:string, placeholder?:string, defaultValue?:string, type?:string}>} fields
+ * @param {{ confirmLabel?: string }} [opts]
+ * @returns {Promise<Record<string,string>|null>}
+ */
+export function showForm(title, fields, { confirmLabel = '保存' } = {}) {
+  return new Promise((resolve) => {
+    const el = getEl();
+
+    el.innerHTML = `
+      <form class="app-dialog__body" method="dialog">
+        <div class="app-dialog__header">
+          <span class="app-dialog__title">${esc(title)}</span>
+        </div>
+        <div class="app-dialog__fields">
+          ${fields
+            .map(
+              (f) => `
+            <div class="app-dialog__field">
+              <label class="app-dialog__label" for="app-field-${esc(f.id)}">${esc(f.label)}</label>
+              <input
+                class="app-dialog__input"
+                id="app-field-${esc(f.id)}"
+                type="${esc(f.type || 'text')}"
+                placeholder="${esc(f.placeholder || '')}"
+                value="${esc(f.defaultValue || '')}"
+                autocomplete="off"
+                spellcheck="false"
+              />
+            </div>
+          `
+            )
+            .join('')}
+        </div>
+        <div class="app-dialog__actions">
+          <button class="app-dialog__btn" id="app-dialog-cancel" type="button">取消</button>
+          <button class="app-dialog__btn app-dialog__btn--primary" id="app-dialog-confirm" type="submit">
+            ${esc(confirmLabel)}
+          </button>
+        </div>
+      </form>
+    `;
+
+    let result = null;
+
+    el.querySelector('form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      result = {};
+      for (const f of fields) {
+        result[f.id] = el.querySelector(`#app-field-${f.id}`).value.trim();
+      }
+      el.close();
+    });
+
+    el.querySelector('#app-dialog-cancel').addEventListener('click', () => el.close());
+    el.addEventListener('close', () => resolve(result), { once: true });
+
+    el.showModal();
+    el.querySelector('.app-dialog__input')?.focus();
   });
 }
 

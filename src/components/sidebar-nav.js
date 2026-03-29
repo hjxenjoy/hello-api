@@ -3,6 +3,7 @@
 const ICON_CHEVRON = `<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 2L7 5l-3.5 3"/></svg>`;
 const ICON_SLIDERS = `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><path d="M2 5h10"/><circle cx="5" cy="5" r="1.5" fill="currentColor" stroke="none"/><path d="M2 9h10"/><circle cx="9" cy="9" r="1.5" fill="currentColor" stroke="none"/></svg>`;
 const ICON_FOLDER = `<svg width="32" height="32" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11a2 2 0 012-2h7l2.5 2.5H26a2 2 0 012 2v9a2 2 0 01-2 2H6a2 2 0 01-2-2V11z"/></svg>`;
+const ICON_SW = `<svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 1.5L2 3.5v3c0 2.8 2 4.5 4.5 5 2.5-.5 4.5-2.2 4.5-5v-3L6.5 1.5z"/><path d="M4.5 6.5l1.5 1.5 2.5-2.5"/></svg>`;
 
 import {
   listProjects,
@@ -191,7 +192,47 @@ template.innerHTML = `
     .footer {
       border-top: 1px solid var(--color-border);
       flex-shrink: 0;
+      display: flex;
+      align-items: center;
     }
+    .sw-btn {
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      border-radius: 4px;
+      border: none;
+      background: none;
+      color: var(--color-text-tertiary);
+      cursor: pointer;
+      margin-right: 4px;
+      transition: color 0.15s, background 0.15s;
+      position: relative;
+    }
+    .sw-btn:hover { color: var(--color-text-secondary); background: var(--color-surface-3); }
+    .sw-btn::before {
+      content: attr(data-tooltip);
+      position: absolute;
+      bottom: calc(100% + 6px);
+      right: 0;
+      background: var(--color-surface-3);
+      color: var(--color-text-primary);
+      border: 1px solid var(--color-border);
+      border-radius: 5px;
+      padding: 5px 8px;
+      font-size: 11px;
+      white-space: nowrap;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.15s;
+      box-shadow: var(--shadow-md);
+      max-width: 220px;
+      text-wrap: wrap;
+      line-height: 1.4;
+    }
+    .sw-btn:hover::before { opacity: 1; }
   </style>
   <div class="header">
     <span class="header-title">项目</span>
@@ -207,6 +248,11 @@ template.innerHTML = `
   </div>
   <div class="footer">
     <storage-indicator></storage-indicator>
+    <button
+      class="sw-btn"
+      id="sw-btn"
+      data-tooltip="注销 Service Worker（开发调试用，注销后自动刷新页面）"
+    >${ICON_SW}</button>
   </div>
 `;
 
@@ -242,6 +288,29 @@ class SidebarNav extends HTMLElement {
     this.shadowRoot.getElementById('env-btn').addEventListener('click', () => {
       this.dispatchEvent(new CustomEvent('open-env-manager', { bubbles: true, composed: true }));
     });
+    this.shadowRoot.getElementById('sw-btn').addEventListener('click', () => this.#unregisterSW());
+  }
+
+  async #unregisterSW() {
+    if (!('serviceWorker' in navigator)) return;
+    const regs = await navigator.serviceWorker.getRegistrations();
+    if (regs.length === 0) {
+      await showConfirm('当前没有已注册的 Service Worker。', {
+        title: 'Service Worker',
+        confirmLabel: '知道了',
+      });
+      return;
+    }
+    const ok = await showConfirm(
+      `将注销 ${regs.length} 个 Service Worker，页面随后自动刷新。缓存的资源文件会被清除。`,
+      { title: '注销 Service Worker', confirmLabel: '注销并刷新', danger: true }
+    );
+    if (!ok) return;
+    await Promise.all(regs.map((r) => r.unregister()));
+    // Clear all caches
+    const keys = await caches.keys();
+    await Promise.all(keys.map((k) => caches.delete(k)));
+    location.reload();
   }
 
   async refresh() {
