@@ -24,6 +24,7 @@ const STATIC_ASSETS = [
   '/src/core/http-client.js',
   '/src/core/interpolation.js',
   '/src/core/storage-stats.js',
+  '/src/core/dialog.js',
   '/manifest.json',
 ];
 

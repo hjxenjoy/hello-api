@@ -13,6 +13,7 @@ import {
   listCollections,
 } from '../db/projects.js';
 import { listRequests, createRequest, deleteRequest } from '../db/requests.js';
+import { showPrompt, showConfirm } from '../core/dialog.js';
 
 const template = document.createElement('template');
 template.innerHTML = `
@@ -383,31 +384,41 @@ class SidebarNav extends HTMLElement {
   }
 
   async #newProject() {
-    const name = prompt('项目名称：');
-    if (!name?.trim()) return;
-    const project = await createProject({ name: name.trim() });
+    const name = await showPrompt('新建项目', { placeholder: '项目名称' });
+    if (!name) return;
+    const project = await createProject({ name });
     this.#expanded.add(project.id);
     await this.refresh();
   }
 
   async #deleteProject(id) {
-    if (!confirm('确认删除该项目及其所有数据？')) return;
+    const ok = await showConfirm('确认删除该项目及其所有集合与请求？此操作不可撤销。', {
+      title: '删除项目',
+      confirmLabel: '删除',
+      danger: true,
+    });
+    if (!ok) return;
     await deleteProject(id);
     this.#expanded.delete(id);
     await this.refresh();
   }
 
   async #newCollection(projectId) {
-    const name = prompt('集合名称：');
-    if (!name?.trim()) return;
-    const col = await createCollection({ projectId, name: name.trim() });
+    const name = await showPrompt('新建集合', { placeholder: '集合名称' });
+    if (!name) return;
+    const col = await createCollection({ projectId, name });
     this.#expanded.add(projectId);
     this.#expandedCollections.add(col.id);
     await this.refresh();
   }
 
   async #deleteCollection(id) {
-    if (!confirm('确认删除该集合及其所有请求？')) return;
+    const ok = await showConfirm('确认删除该集合及其所有请求？此操作不可撤销。', {
+      title: '删除集合',
+      confirmLabel: '删除',
+      danger: true,
+    });
+    if (!ok) return;
     await deleteCollection(id);
     this.#expandedCollections.delete(id);
     await this.refresh();
@@ -427,7 +438,12 @@ class SidebarNav extends HTMLElement {
   }
 
   async #deleteReq(id) {
-    if (!confirm('确认删除该请求？')) return;
+    const ok = await showConfirm('确认删除该请求？此操作不可撤销。', {
+      title: '删除请求',
+      confirmLabel: '删除',
+      danger: true,
+    });
+    if (!ok) return;
     if (this.#activeRequestId === id) this.#activeRequestId = null;
     await deleteRequest(id);
     await this.refresh();

@@ -7,6 +7,7 @@ import {
   deleteEnvironment,
   setActiveEnvironment,
 } from '../db/environments.js';
+import { showPrompt, showConfirm } from '../core/dialog.js';
 
 const template = document.createElement('template');
 template.innerHTML = `
@@ -306,9 +307,9 @@ class EnvManager extends HTMLElement {
 
   async #addEnv() {
     if (!this.#projectId) return;
-    const name = prompt('环境名称：');
-    if (!name?.trim()) return;
-    const env = await createEnvironment({ projectId: this.#projectId, name: name.trim() });
+    const name = await showPrompt('新建环境', { placeholder: '环境名称，如：开发、生产' });
+    if (!name) return;
+    const env = await createEnvironment({ projectId: this.#projectId, name });
     this.#envs.push(env);
     this.#selectedEnvId = env.id;
     this.#renderEnvList();
@@ -316,7 +317,12 @@ class EnvManager extends HTMLElement {
   }
 
   async #deleteEnv(id) {
-    if (!confirm('确认删除该环境？')) return;
+    const ok = await showConfirm('确认删除该环境及其所有变量？', {
+      title: '删除环境',
+      confirmLabel: '删除',
+      danger: true,
+    });
+    if (!ok) return;
     await deleteEnvironment(id);
     this.#envs = this.#envs.filter((e) => e.id !== id);
     if (this.#selectedEnvId === id) {
