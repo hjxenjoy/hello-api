@@ -1,6 +1,6 @@
 // Environment variables CRUD
 
-import { getDB } from './index.js';
+import { openDB } from './index.js';
 
 function idbRequest(request) {
   return new Promise((resolve, reject) => {
@@ -14,7 +14,7 @@ function now() {
 }
 
 export async function createEnvironment(data) {
-  const db = getDB();
+  const db = await openDB();
   const env = {
     id: crypto.randomUUID(),
     projectId: data.projectId,
@@ -30,13 +30,13 @@ export async function createEnvironment(data) {
 }
 
 export async function getEnvironment(id) {
-  const db = getDB();
+  const db = await openDB();
   const tx = db.transaction('environments', 'readonly');
   return idbRequest(tx.objectStore('environments').get(id));
 }
 
 export async function listEnvironments(projectId) {
-  const db = getDB();
+  const db = await openDB();
   const tx = db.transaction('environments', 'readonly');
   const index = tx.objectStore('environments').index('projectId');
   const all = await idbRequest(index.getAll(projectId));
@@ -44,7 +44,7 @@ export async function listEnvironments(projectId) {
 }
 
 export async function updateEnvironment(id, data) {
-  const db = getDB();
+  const db = await openDB();
   const tx = db.transaction('environments', 'readwrite');
   const store = tx.objectStore('environments');
   const existing = await idbRequest(store.get(id));
@@ -55,14 +55,14 @@ export async function updateEnvironment(id, data) {
 }
 
 export async function deleteEnvironment(id) {
-  const db = getDB();
+  const db = await openDB();
   const tx = db.transaction('environments', 'readwrite');
   await idbRequest(tx.objectStore('environments').delete(id));
 }
 
 export async function setActiveEnvironment(projectId, envId) {
   const envs = await listEnvironments(projectId);
-  const db = getDB();
+  const db = await openDB();
   const tx = db.transaction('environments', 'readwrite');
   const store = tx.objectStore('environments');
 

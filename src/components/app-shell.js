@@ -1,5 +1,10 @@
 // <app-shell> Web Component - overall responsive layout
 
+const ICON_MENU = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M2 4h12M2 8h12M2 12h12"/></svg>`;
+const ICON_SUN = `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="7" cy="7" r="2.5"/><path d="M7 1v1.5M7 11.5V13M1 7h1.5M11.5 7H13M3.05 3.05l1.06 1.06M9.89 9.89l1.06 1.06M9.89 4.11l1.06-1.06M3.05 10.95l1.06-1.06"/></svg>`;
+const ICON_MOON = `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11.5 8.5A5.5 5.5 0 015.5 2a5.5 5.5 0 100 11 5.5 5.5 0 006-4.5z"/></svg>`;
+const ICON_SEND = `<svg width="32" height="32" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 16h20M18 8l8 8-8 8"/></svg>`;
+
 import './sidebar-nav.js';
 import './request-editor.js';
 import './response-viewer.js';
@@ -181,18 +186,18 @@ template.innerHTML = `
 
     <div class="main" id="main">
       <div class="topbar">
-        <div class="menu-btn" id="menu-btn">☰</div>
+        <div class="menu-btn" id="menu-btn" title="菜单">${ICON_MENU}</div>
         <span class="topbar-title" id="topbar-title">Hello API</span>
         <div class="env-badge" id="env-badge" title="切换环境">
           <div class="env-dot" id="env-dot"></div>
           <span id="env-name">无环境</span>
         </div>
-        <div class="theme-btn" id="theme-btn" title="切换主题">◑</div>
+        <div class="theme-btn" id="theme-btn" title="切换主题"></div>
       </div>
 
       <div class="workspace" id="workspace">
         <div class="empty-workspace" id="empty-workspace">
-          <div class="empty-icon">🚀</div>
+          <div class="empty-icon">${ICON_SEND}</div>
           <div>从左侧选择或新建一个请求</div>
         </div>
       </div>
@@ -224,9 +229,17 @@ class AppShell extends HTMLElement {
       .addEventListener('click', () => this.#closeSidebar());
 
     // Theme toggle
-    this.shadowRoot.getElementById('theme-btn').addEventListener('click', () => {
+    const themeBtn = this.shadowRoot.getElementById('theme-btn');
+    const syncThemeIcon = () => {
+      themeBtn.innerHTML = document.documentElement.dataset.theme === 'dark' ? ICON_SUN : ICON_MOON;
+    };
+    syncThemeIcon();
+    themeBtn.addEventListener('click', () => {
       const html = document.documentElement;
-      html.dataset.theme = html.dataset.theme === 'dark' ? 'light' : 'dark';
+      const next = html.dataset.theme === 'dark' ? 'light' : 'dark';
+      html.dataset.theme = next;
+      localStorage.setItem('theme', next);
+      syncThemeIcon();
     });
 
     // Env badge
@@ -296,7 +309,7 @@ class AppShell extends HTMLElement {
     const workspace = this.shadowRoot.getElementById('workspace');
     workspace.innerHTML = `
       <div class="empty-workspace" id="empty-workspace">
-        <div class="empty-icon">🚀</div>
+        <div class="empty-icon">${ICON_SEND}</div>
         <div>从左侧选择或新建一个请求</div>
       </div>
     `;

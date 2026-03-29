@@ -1,5 +1,7 @@
 // <response-viewer> Web Component - response display (status, timing, body)
 
+const ICON_RESPONSE = `<svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 10H10a4 4 0 000 8h4"/><path d="M10 14l-4 4 4 4"/></svg>`;
+
 const template = document.createElement('template');
 template.innerHTML = `
   <style>
@@ -150,7 +152,7 @@ template.innerHTML = `
   </div>
   <div class="panel active" id="panel-body">
     <div class="empty-state" id="empty-state">
-      <div class="empty-icon">↩</div>
+      <div class="empty-icon">${ICON_RESPONSE}</div>
       <div>发送请求后查看响应</div>
     </div>
     <div class="body-content" id="body-content" style="display:none"></div>

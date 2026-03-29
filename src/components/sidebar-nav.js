@@ -1,5 +1,9 @@
 // <sidebar-nav> Web Component - project/request tree navigation
 
+const ICON_CHEVRON = `<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 2L7 5l-3.5 3"/></svg>`;
+const ICON_SLIDERS = `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><path d="M2 5h10"/><circle cx="5" cy="5" r="1.5" fill="currentColor" stroke="none"/><path d="M2 9h10"/><circle cx="9" cy="9" r="1.5" fill="currentColor" stroke="none"/></svg>`;
+const ICON_FOLDER = `<svg width="32" height="32" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11a2 2 0 012-2h7l2.5 2.5H26a2 2 0 012 2v9a2 2 0 01-2 2H6a2 2 0 01-2-2V11z"/></svg>`;
+
 import {
   listProjects,
   createProject,
@@ -191,11 +195,11 @@ template.innerHTML = `
   <div class="header">
     <span class="header-title">项目</span>
     <div class="icon-btn" id="new-project-btn" title="新建项目">+</div>
-    <div class="icon-btn" id="env-btn" title="环境变量" style="font-size:14px">⚙</div>
+    <div class="icon-btn" id="env-btn" title="环境变量">${ICON_SLIDERS}</div>
   </div>
   <div class="tree" id="tree">
     <div class="empty-projects" id="empty-state">
-      <div class="empty-icon">📂</div>
+      <div class="empty-icon">${ICON_FOLDER}</div>
       <div>暂无项目</div>
       <div>点击 + 新建第一个项目</div>
     </div>
@@ -265,7 +269,7 @@ class SidebarNav extends HTMLElement {
       const row = document.createElement('div');
       row.className = 'project-row';
       row.innerHTML = `
-        <div class="chevron${isOpen ? ' open' : ''}">▶</div>
+        <div class="chevron${isOpen ? ' open' : ''}">${ICON_CHEVRON}</div>
         <div class="project-name">${this.#esc(project.name)}</div>
         <div class="row-actions">
           <div class="action-btn" data-action="add-collection" title="新建集合">+</div>
@@ -309,7 +313,7 @@ class SidebarNav extends HTMLElement {
           const colRow = document.createElement('div');
           colRow.className = 'collection-row';
           colRow.innerHTML = `
-            <div class="chevron${colOpen ? ' open' : ''}">▶</div>
+            <div class="chevron${colOpen ? ' open' : ''}">${ICON_CHEVRON}</div>
             <div class="collection-name">${this.#esc(col.name)}</div>
             <div class="row-actions">
               <div class="action-btn" data-action="add-request" title="新建请求">+</div>

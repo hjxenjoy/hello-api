@@ -1,6 +1,6 @@
 // Projects & collections CRUD
 
-import { getDB } from './index.js';
+import { openDB } from './index.js';
 
 function idbRequest(request) {
   return new Promise((resolve, reject) => {
@@ -16,7 +16,7 @@ function now() {
 // ── Projects ──
 
 export async function createProject(data) {
-  const db = getDB();
+  const db = await openDB();
   const project = {
     id: crypto.randomUUID(),
     name: data.name ?? 'Untitled Project',
@@ -30,20 +30,20 @@ export async function createProject(data) {
 }
 
 export async function getProject(id) {
-  const db = getDB();
+  const db = await openDB();
   const tx = db.transaction('projects', 'readonly');
   return idbRequest(tx.objectStore('projects').get(id));
 }
 
 export async function listProjects() {
-  const db = getDB();
+  const db = await openDB();
   const tx = db.transaction('projects', 'readonly');
   const all = await idbRequest(tx.objectStore('projects').getAll());
   return all.sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export async function updateProject(id, data) {
-  const db = getDB();
+  const db = await openDB();
   const tx = db.transaction('projects', 'readwrite');
   const store = tx.objectStore('projects');
   const existing = await idbRequest(store.get(id));
@@ -54,7 +54,7 @@ export async function updateProject(id, data) {
 }
 
 export async function deleteProject(id) {
-  const db = getDB();
+  const db = await openDB();
 
   // cascade: delete all collections and their requests
   const collections = await listCollections(id);
@@ -69,7 +69,7 @@ export async function deleteProject(id) {
 // ── Collections ──
 
 export async function createCollection(data) {
-  const db = getDB();
+  const db = await openDB();
   const collection = {
     id: crypto.randomUUID(),
     projectId: data.projectId,
@@ -85,13 +85,13 @@ export async function createCollection(data) {
 }
 
 export async function getCollection(id) {
-  const db = getDB();
+  const db = await openDB();
   const tx = db.transaction('collections', 'readonly');
   return idbRequest(tx.objectStore('collections').get(id));
 }
 
 export async function listCollections(projectId) {
-  const db = getDB();
+  const db = await openDB();
   const tx = db.transaction('collections', 'readonly');
   const index = tx.objectStore('collections').index('projectId');
   const all = await idbRequest(index.getAll(projectId));
@@ -99,7 +99,7 @@ export async function listCollections(projectId) {
 }
 
 export async function updateCollection(id, data) {
-  const db = getDB();
+  const db = await openDB();
   const tx = db.transaction('collections', 'readwrite');
   const store = tx.objectStore('collections');
   const existing = await idbRequest(store.get(id));
@@ -110,7 +110,7 @@ export async function updateCollection(id, data) {
 }
 
 export async function deleteCollection(id) {
-  const db = getDB();
+  const db = await openDB();
 
   // cascade: delete all requests in this collection
   const { listRequests, deleteRequest } = await import('./requests.js');

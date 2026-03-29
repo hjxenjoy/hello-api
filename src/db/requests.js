@@ -1,6 +1,6 @@
 // Requests CRUD
 
-import { getDB } from './index.js';
+import { openDB } from './index.js';
 
 function idbRequest(request) {
   return new Promise((resolve, reject) => {
@@ -14,7 +14,7 @@ function now() {
 }
 
 export async function createRequest(data) {
-  const db = getDB();
+  const db = await openDB();
   const req = {
     id: crypto.randomUUID(),
     collectionId: data.collectionId,
@@ -35,13 +35,13 @@ export async function createRequest(data) {
 }
 
 export async function getRequest(id) {
-  const db = getDB();
+  const db = await openDB();
   const tx = db.transaction('requests', 'readonly');
   return idbRequest(tx.objectStore('requests').get(id));
 }
 
 export async function listRequests(collectionId) {
-  const db = getDB();
+  const db = await openDB();
   const tx = db.transaction('requests', 'readonly');
   const index = tx.objectStore('requests').index('collectionId');
   const all = await idbRequest(index.getAll(collectionId));
@@ -49,7 +49,7 @@ export async function listRequests(collectionId) {
 }
 
 export async function updateRequest(id, data) {
-  const db = getDB();
+  const db = await openDB();
   const tx = db.transaction('requests', 'readwrite');
   const store = tx.objectStore('requests');
   const existing = await idbRequest(store.get(id));
@@ -60,13 +60,13 @@ export async function updateRequest(id, data) {
 }
 
 export async function deleteRequest(id) {
-  const db = getDB();
+  const db = await openDB();
   const tx = db.transaction('requests', 'readwrite');
   await idbRequest(tx.objectStore('requests').delete(id));
 }
 
 export async function duplicateRequest(id) {
-  const db = getDB();
+  const db = await openDB();
   const tx = db.transaction('requests', 'readonly');
   const original = await idbRequest(tx.objectStore('requests').get(id));
   if (!original) throw new Error(`Request ${id} not found`);
