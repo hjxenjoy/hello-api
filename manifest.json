@@ -1,1 +1,27 @@
-{}
+{
+  "name": "Hello API",
+  "short_name": "Hello API",
+  "description": "安全、离线优先的 HTTP 接口测试工具",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "theme_color": "#1a1d27",
+  "background_color": "#0f1117",
+  "lang": "zh-CN",
+  "categories": ["developer", "utilities"],
+  "shortcuts": [],
+  "icons": [
+    {
+      "src": "assets/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "assets/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

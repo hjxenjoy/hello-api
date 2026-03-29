@@ -1,1 +1,32 @@
-<!-- Hello API - Entry Point -->
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="安全、离线优先的 HTTP 接口测试工具" />
+    <meta name="theme-color" content="#1a1d27" />
+
+    <link rel="manifest" href="/manifest.json" />
+
+    <link rel="stylesheet" href="/src/styles/tokens.css" />
+    <link rel="stylesheet" href="/src/styles/base.css" />
+    <link rel="stylesheet" href="/src/styles/layout.css" />
+    <link rel="stylesheet" href="/src/styles/themes/light.css" />
+    <link rel="stylesheet" href="/src/styles/themes/dark.css" />
+
+    <title>Hello API</title>
+  </head>
+  <body>
+    <app-shell></app-shell>
+
+    <script type="module" src="/src/app.js"></script>
+
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').catch(() => {});
+        });
+      }
+    </script>
+  </body>
+</html>
