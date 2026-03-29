@@ -13,6 +13,7 @@ function ensureStyles() {
       border: 1px solid var(--color-border-strong);
       border-radius: 10px;
       padding: 0;
+      margin: auto;
       box-shadow: var(--shadow-lg);
       min-width: 320px;
       max-width: 480px;
@@ -111,6 +112,7 @@ function ensureStyles() {
     .app-dialog__btn--primary:hover {
       background: var(--color-accent-hover);
       border-color: var(--color-accent-hover);
+      color: #fff;
     }
     .app-dialog__btn--danger {
       background: var(--color-error);
@@ -120,6 +122,7 @@ function ensureStyles() {
     .app-dialog__btn--danger:hover {
       background: #dc2626;
       border-color: #dc2626;
+      color: #fff;
     }
   `;
   document.head.appendChild(style);

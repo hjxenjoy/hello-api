@@ -1,5 +1,9 @@
 // Service Worker
 
+// On localhost: bypass all caching so dev changes are always picked up
+// and network errors surface normally when the dev server is stopped.
+const isDev = self.location.hostname === 'localhost' || self.location.hostname === '127.0.0.1';
+
 const CACHE_NAME = 'hello-api-v1';
 
 const STATIC_ASSETS = [
@@ -29,6 +33,11 @@ const STATIC_ASSETS = [
 ];
 
 self.addEventListener('install', (event) => {
+  if (isDev) {
+    // Dev: skip waiting immediately, no precache
+    self.skipWaiting();
+    return;
+  }
   event.waitUntil(
     caches
       .open(CACHE_NAME)
@@ -52,11 +61,13 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Only cache same-origin requests; pass through cross-origin API calls
-  if (url.origin !== self.location.origin) {
-    return;
-  }
+  // Cross-origin requests (API calls): always pass through
+  if (url.origin !== self.location.origin) return;
 
+  // Dev: pass through everything — no SW interference, normal network errors visible
+  if (isDev) return;
+
+  // Production: cache-first, fall back to network and cache response
   event.respondWith(
     caches.match(request).then((cached) => {
       if (cached) return cached;
