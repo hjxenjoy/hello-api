@@ -65,6 +65,16 @@ export async function deleteRequest(id) {
   await idbRequest(tx.objectStore('requests').delete(id));
 }
 
+export async function saveRequestResponse(id, response) {
+  const db = await openDB();
+  const tx = db.transaction('requests', 'readwrite');
+  const store = tx.objectStore('requests');
+  const existing = await idbRequest(store.get(id));
+  if (!existing) return;
+  existing.lastResponse = response;
+  await idbRequest(store.put(existing));
+}
+
 export async function duplicateRequest(id) {
   const db = await openDB();
   const tx = db.transaction('requests', 'readonly');

@@ -2,7 +2,7 @@
 
 import { sendRequest } from '../core/http-client.js';
 import { interpolateRequest, envToVariables } from '../core/interpolation.js';
-import { updateRequest } from '../db/requests.js';
+import { updateRequest, saveRequestResponse } from '../db/requests.js';
 
 const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];
 const RAW_CONTENT_TYPES = [
@@ -639,6 +639,13 @@ class RequestEditor extends HTMLElement {
 
     btn.disabled = false;
     btn.textContent = '发送';
+
+    // Persist response to IndexedDB (strip blobUrl — it's a temporary object URL)
+    if (this.#request?.id && !response.error) {
+      const { blobUrl, ...storable } = response;
+      storable.requestedAt = Date.now();
+      saveRequestResponse(this.#request.id, storable).catch(() => {});
+    }
 
     this.dispatchEvent(
       new CustomEvent('request-response', {

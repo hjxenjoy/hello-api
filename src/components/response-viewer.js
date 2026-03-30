@@ -52,6 +52,14 @@ template.innerHTML = `
       color: var(--color-text-tertiary);
     }
     .meta-item span { color: var(--color-text-secondary); }
+    .cached-badge {
+      font-size: 11px;
+      color: var(--color-text-tertiary);
+      padding: 1px 6px;
+      border-radius: 9999px;
+      border: 1px solid var(--color-border);
+      white-space: nowrap;
+    }
     .tabs {
       display: flex;
       border-bottom: 1px solid var(--color-border);
@@ -298,7 +306,7 @@ class ResponseViewer extends HTMLElement {
       '<div class="preview-unsupported"><div>发送请求后查看预览</div></div>';
   }
 
-  setResponse(response) {
+  setResponse(response, { cached = false } = {}) {
     this.#revokeBlobUrl();
 
     const badge = this.shadowRoot.getElementById('status-badge');
@@ -330,9 +338,14 @@ class ResponseViewer extends HTMLElement {
     badge.style.cssText = '';
     badge.textContent = `${s} ${response.statusText}`;
 
+    const cachedPart =
+      cached && response.requestedAt
+        ? `<span class="cached-badge">缓存 · ${new Date(response.requestedAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>`
+        : '';
     meta.innerHTML = [
       `<span class="meta-item">耗时 <span>${response.duration}ms</span></span>`,
       `<span class="meta-item">大小 <span>${this.#formatSize(response.size)}</span></span>`,
+      cachedPart,
     ].join('');
 
     errorBody.style.display = 'none';
