@@ -136,13 +136,19 @@ template.innerHTML = `
     }
     .panel { display: none; flex: 1; min-height: 0; overflow-y: auto; padding: 8px; }
     .panel.active { display: flex; flex-direction: column; gap: 4px; }
+    .kv-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
     .kv-row {
       display: grid;
       grid-template-columns: 24px 1fr 1fr 28px;
       gap: 4px;
       align-items: center;
+      min-width: 0;
     }
-    .kv-check { width: 14px; height: 14px; cursor: pointer; accent-color: var(--color-accent); }
+    .kv-check { width: 14px; height: 14px; cursor: pointer; accent-color: var(--color-accent); flex-shrink: 0; }
     .kv-input {
       border: 1px solid var(--color-input-border);
       background: var(--color-input-bg);
@@ -153,6 +159,7 @@ template.innerHTML = `
       color: var(--color-text-primary);
       outline: none;
       width: 100%;
+      min-width: 0;
     }
     .kv-input::placeholder { color: var(--color-input-placeholder); font-family: var(--font-sans); }
     .kv-input:focus { border-color: var(--color-input-border-focus); }
@@ -279,11 +286,11 @@ template.innerHTML = `
     <div class="tab" data-tab="body">Body</div>
   </div>
   <div class="panel active" id="panel-params">
-    <div id="params-list"></div>
+    <div class="kv-list" id="params-list"></div>
     <button class="add-row-btn" id="add-param-btn">+ 添加参数</button>
   </div>
   <div class="panel" id="panel-headers">
-    <div id="headers-list"></div>
+    <div class="kv-list" id="headers-list"></div>
     <button class="add-row-btn" id="add-header-btn">+ 添加 Header</button>
   </div>
   <div class="panel" id="panel-body">
@@ -492,6 +499,7 @@ class RequestEditor extends HTMLElement {
     const pairs = this.#request.body.pairs ?? [];
 
     const list = document.createElement('div');
+    list.className = 'kv-list';
 
     pairs.forEach((item, i) => {
       const row = document.createElement('div');
