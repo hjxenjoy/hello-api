@@ -247,6 +247,46 @@ template.innerHTML = `
       cursor: pointer;
     }
     select.raw-type:focus { border-color: var(--color-input-border-focus); }
+    .json-toolbar {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    .json-format-btn {
+      padding: 2px 8px;
+      font-size: 11px;
+      color: var(--color-text-secondary);
+      border: 1px solid var(--color-border);
+      border-radius: 3px;
+      background: none;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .json-format-btn:hover {
+      color: var(--color-text-primary);
+      background: var(--color-surface-3);
+      border-color: var(--color-border-strong);
+    }
+    .cm-container {
+      flex: 1;
+      min-height: 120px;
+      border: 1px solid var(--color-input-border);
+      border-radius: 4px;
+      overflow: hidden;
+      font-size: 12px;
+    }
+    .cm-container:focus-within {
+      border-color: var(--color-input-border-focus);
+    }
+    .cm-container .cm-editor {
+      height: 100%;
+    }
+    .cm-container .cm-scroller {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 1.6;
+    }
     .body-textarea {
       flex: 1;
       border: 1px solid var(--color-input-border);
@@ -307,6 +347,7 @@ class RequestEditor extends HTMLElement {
   #request = null;
   #environment = null;
   #saveTimer = null;
+  #cmEditor = null;
 
   connectedCallback() {
     if (!this.shadowRoot) {
@@ -354,13 +395,13 @@ class RequestEditor extends HTMLElement {
         .forEach((b) => b.classList.toggle('active', b === btn));
 
       if (this.#request) {
-        // Capture current textarea/select values before switching
+        // Capture current body values before switching
         const prevType = this.#request.body?.type;
-        if (prevType === 'json' || prevType === 'raw') {
+        if (prevType === 'json' && this.#cmEditor) {
+          this.#request.body.content = this.#cmEditor.state.doc.toString();
+        } else if (prevType === 'raw') {
           const ta = this.shadowRoot.getElementById('body-textarea');
           if (ta) this.#request.body.content = ta.value;
-        }
-        if (prevType === 'raw') {
           const rs = this.shadowRoot.getElementById('raw-type-select');
           if (rs) this.#request.body.contentType = rs.value;
         }
@@ -447,6 +488,12 @@ class RequestEditor extends HTMLElement {
   }
 
   #renderBodyArea() {
+    // Destroy any existing CodeMirror instance before clearing the DOM
+    if (this.#cmEditor) {
+      this.#cmEditor.destroy();
+      this.#cmEditor = null;
+    }
+
     const type = this.#request?.body?.type ?? 'none';
     const area = this.shadowRoot.getElementById('body-area');
     area.innerHTML = '';
@@ -461,6 +508,23 @@ class RequestEditor extends HTMLElement {
 
     if (type === 'form-urlencoded') {
       this.#renderFormPairs();
+      return;
+    }
+
+    if (type === 'json') {
+      const toolbar = document.createElement('div');
+      toolbar.className = 'json-toolbar';
+      const fmtBtn = document.createElement('button');
+      fmtBtn.className = 'json-format-btn';
+      fmtBtn.textContent = '格式化';
+      fmtBtn.addEventListener('click', () => this.#formatJson());
+      toolbar.appendChild(fmtBtn);
+      area.appendChild(toolbar);
+
+      const container = document.createElement('div');
+      container.className = 'cm-container';
+      area.appendChild(container);
+      this.#createJsonEditor(container, this.#request.body.content ?? '');
       return;
     }
 
@@ -497,6 +561,78 @@ class RequestEditor extends HTMLElement {
     textarea.value = this.#request.body.content ?? '';
     textarea.addEventListener('input', () => this.#scheduleSave());
     area.appendChild(textarea);
+  }
+
+  async #createJsonEditor(container, initialValue) {
+    try {
+      const [{ basicSetup, EditorView }, { json }, { oneDark }] = await Promise.all([
+        import('https://esm.sh/codemirror@6'),
+        import('https://esm.sh/@codemirror/lang-json@6'),
+        import('https://esm.sh/@codemirror/theme-one-dark@6'),
+      ]);
+
+      // Guard: body type may have changed while loading
+      if (this.#request?.body?.type !== 'json') return;
+
+      const isDark =
+        document.documentElement.dataset.theme === 'dark' ||
+        (!document.documentElement.dataset.theme &&
+          window.matchMedia('(prefers-color-scheme: dark)').matches);
+
+      const extensions = [
+        basicSetup,
+        json(),
+        EditorView.updateListener.of((update) => {
+          if (update.docChanged) this.#scheduleSave();
+        }),
+        EditorView.theme({
+          '&': { height: '100%', backgroundColor: 'var(--color-input-bg)' },
+          '&.cm-focused': { outline: 'none' },
+          '.cm-gutters': {
+            backgroundColor: 'var(--color-surface-2)',
+            borderRight: '1px solid var(--color-border)',
+            color: 'var(--color-text-tertiary)',
+          },
+          '.cm-activeLineGutter': { backgroundColor: 'var(--color-surface-3)' },
+          '.cm-activeLine': { backgroundColor: 'var(--color-bg-subtle)' },
+        }),
+      ];
+      if (isDark) extensions.push(oneDark);
+
+      this.#cmEditor = new EditorView({
+        doc: initialValue,
+        extensions,
+        parent: container,
+      });
+    } catch {
+      // Fallback to plain textarea when CDN unavailable
+      if (this.#request?.body?.type !== 'json') return;
+      const area = this.shadowRoot.getElementById('body-area');
+      const container2 = area?.querySelector('.cm-container');
+      if (!container2) return;
+      container2.innerHTML = '';
+      const ta = document.createElement('textarea');
+      ta.className = 'body-textarea';
+      ta.id = 'body-textarea';
+      ta.placeholder = 'JSON 内容';
+      ta.value = this.#request.body.content ?? '';
+      ta.addEventListener('input', () => this.#scheduleSave());
+      container2.appendChild(ta);
+    }
+  }
+
+  #formatJson() {
+    if (!this.#cmEditor) return;
+    const content = this.#cmEditor.state.doc.toString();
+    try {
+      const formatted = JSON.stringify(JSON.parse(content), null, 2);
+      this.#cmEditor.dispatch({
+        changes: { from: 0, to: this.#cmEditor.state.doc.length, insert: formatted },
+      });
+      this.#scheduleSave();
+    } catch {
+      // Invalid JSON — ignore silently
+    }
   }
 
   #renderFormPairs() {
@@ -600,6 +736,10 @@ class RequestEditor extends HTMLElement {
         this.shadowRoot.getElementById('raw-type-select')?.value ??
         this.#request?.body?.contentType ??
         'text/plain';
+    } else if (activeType === 'json') {
+      body.content = this.#cmEditor
+        ? this.#cmEditor.state.doc.toString()
+        : (this.shadowRoot.getElementById('body-textarea')?.value ?? '');
     } else if (activeType !== 'none') {
       body.content = this.shadowRoot.getElementById('body-textarea')?.value ?? '';
     }
