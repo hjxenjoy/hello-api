@@ -61,6 +61,7 @@ template.innerHTML = `
       height: 18px;
       min-width: 18px;
       min-height: 18px;
+      padding: 0;
       display: flex;
       align-items: center;
       justify-content: center;
