@@ -194,10 +194,14 @@ template.innerHTML = `
       flex-shrink: 0;
       display: flex;
       align-items: center;
+      overflow: hidden;
+      min-height: 32px;
     }
     .sw-btn {
       width: 28px;
       height: 28px;
+      min-width: 28px;
+      min-height: 28px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -223,14 +227,15 @@ template.innerHTML = `
       border-radius: 5px;
       padding: 5px 8px;
       font-size: 11px;
-      white-space: nowrap;
+      white-space: normal;
+      word-wrap: break-word;
       pointer-events: none;
       opacity: 0;
       transition: opacity 0.15s;
       box-shadow: var(--shadow-md);
-      max-width: 220px;
-      text-wrap: wrap;
-      line-height: 1.4;
+      max-width: 200px;
+      line-height: 1.5;
+      z-index: 10;
     }
     .sw-btn:hover::before { opacity: 1; }
   </style>

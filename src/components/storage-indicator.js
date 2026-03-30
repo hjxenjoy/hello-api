@@ -59,6 +59,8 @@ template.innerHTML = `
     .settings-btn {
       width: 18px;
       height: 18px;
+      min-width: 18px;
+      min-height: 18px;
       display: flex;
       align-items: center;
       justify-content: center;
