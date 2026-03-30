@@ -77,19 +77,35 @@ export async function sendRequest({
     });
 
     const duration = Math.round(performance.now() - startTime);
-    const bodyText = await response.text();
-    const size = new TextEncoder().encode(bodyText).length;
 
     const responseHeaders = {};
     response.headers.forEach((value, key) => {
       responseHeaders[key] = value;
     });
 
+    const contentType = responseHeaders['content-type'] ?? '';
+    // Binary types: read as blob for preview; SVG is text-based so excluded
+    const isBinary = /^(image\/(?!svg\+xml)|audio\/|video\/|application\/pdf)/i.test(contentType);
+
+    let bodyText,
+      blobUrl = null,
+      size;
+    if (isBinary) {
+      const blob = await response.blob();
+      size = blob.size;
+      blobUrl = URL.createObjectURL(blob);
+      bodyText = `[二进制内容 · ${contentType}]`;
+    } else {
+      bodyText = await response.text();
+      size = new TextEncoder().encode(bodyText).length;
+    }
+
     return {
       status: response.status,
       statusText: response.statusText,
       headers: responseHeaders,
       body: bodyText,
+      blobUrl,
       duration,
       size,
     };

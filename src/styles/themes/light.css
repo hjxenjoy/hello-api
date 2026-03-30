@@ -31,6 +31,12 @@
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.08);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
   --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.15);
+
+  --json-string: #15803d;
+  --json-number: #1d4ed8;
+  --json-boolean: #b45309;
+  --json-null: #b91c1c;
+  --json-key: #6d28d9;
 }
 
 @media (prefers-color-scheme: light) {
@@ -65,5 +71,11 @@
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.08);
     --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
     --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.15);
+
+    --json-string: #15803d;
+    --json-number: #1d4ed8;
+    --json-boolean: #b45309;
+    --json-null: #b91c1c;
+    --json-key: #6d28d9;
   }
 }

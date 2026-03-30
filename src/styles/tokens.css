@@ -116,4 +116,11 @@
   --color-input-border: #2d3148;
   --color-input-border-focus: #3b82f6;
   --color-input-placeholder: #475569;
+
+  /* JSON syntax highlight (dark defaults) */
+  --json-string: #86efac;
+  --json-number: #93c5fd;
+  --json-boolean: #fbbf24;
+  --json-null: #f87171;
+  --json-key: #c4b5fd;
 }

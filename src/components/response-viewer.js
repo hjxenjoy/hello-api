@@ -120,11 +120,11 @@ template.innerHTML = `
       color: var(--color-text-primary);
       overflow-y: auto;
     }
-    .body-content.json .string { color: #86efac; }
-    .body-content.json .number { color: #93c5fd; }
-    .body-content.json .boolean { color: #fbbf24; }
-    .body-content.json .null { color: #f87171; }
-    .body-content.json .key { color: #c4b5fd; }
+    .body-content.json .string { color: var(--json-string); }
+    .body-content.json .number { color: var(--json-number); }
+    .body-content.json .boolean { color: var(--json-boolean); }
+    .body-content.json .null { color: var(--json-null); }
+    .body-content.json .key { color: var(--json-key); }
     .headers-table {
       width: 100%;
       border-collapse: collapse;
@@ -162,6 +162,52 @@ template.innerHTML = `
       font-size: 12px;
       white-space: pre-wrap;
     }
+    /* Preview panel */
+    #panel-preview {
+      overflow: hidden;
+    }
+    .preview-wrap {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      padding: 8px;
+    }
+    .preview-wrap img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      border-radius: 4px;
+    }
+    .preview-wrap audio {
+      width: 100%;
+    }
+    .preview-wrap video {
+      max-width: 100%;
+      max-height: 100%;
+      border-radius: 4px;
+    }
+    .preview-wrap iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+      border-radius: 4px;
+    }
+    .preview-unsupported {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      color: var(--color-text-tertiary);
+      font-size: 12px;
+    }
+    .preview-unsupported code {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--color-text-secondary);
+    }
   </style>
   <div class="toolbar">
     <span class="title">响应</span>
@@ -171,6 +217,7 @@ template.innerHTML = `
   <div class="tabs" id="tabs">
     <div class="tab active" data-tab="body">Body</div>
     <div class="tab" data-tab="headers">Headers</div>
+    <div class="tab" data-tab="preview">Preview</div>
   </div>
   <div class="panel active" id="panel-body">
     <div class="empty-state" id="empty-state">
@@ -190,15 +237,28 @@ template.innerHTML = `
       <tbody id="headers-tbody"></tbody>
     </table>
   </div>
+  <div class="panel" id="panel-preview">
+    <div class="preview-wrap" id="preview-wrap">
+      <div class="preview-unsupported">
+        <div>发送请求后查看预览</div>
+      </div>
+    </div>
+  </div>
 `;
 
 class ResponseViewer extends HTMLElement {
+  #blobUrl = null;
+
   connectedCallback() {
     if (!this.shadowRoot) {
       this.attachShadow({ mode: 'open' });
       this.shadowRoot.appendChild(template.content.cloneNode(true));
       this.#bindTabs();
     }
+  }
+
+  disconnectedCallback() {
+    this.#revokeBlobUrl();
   }
 
   #bindTabs() {
@@ -215,7 +275,15 @@ class ResponseViewer extends HTMLElement {
     });
   }
 
+  #revokeBlobUrl() {
+    if (this.#blobUrl) {
+      URL.revokeObjectURL(this.#blobUrl);
+      this.#blobUrl = null;
+    }
+  }
+
   setLoading() {
+    this.#revokeBlobUrl();
     const badge = this.shadowRoot.getElementById('status-badge');
     badge.className = 'status-badge visible';
     badge.textContent = '发送中';
@@ -226,9 +294,13 @@ class ResponseViewer extends HTMLElement {
     this.shadowRoot.getElementById('body-content').style.display = 'none';
     this.shadowRoot.getElementById('error-body').style.display = 'none';
     this.shadowRoot.getElementById('loading-state').style.display = 'flex';
+    this.shadowRoot.getElementById('preview-wrap').innerHTML =
+      '<div class="preview-unsupported"><div>发送请求后查看预览</div></div>';
   }
 
   setResponse(response) {
+    this.#revokeBlobUrl();
+
     const badge = this.shadowRoot.getElementById('status-badge');
     const meta = this.shadowRoot.getElementById('meta');
     const emptyState = this.shadowRoot.getElementById('empty-state');
@@ -247,6 +319,8 @@ class ResponseViewer extends HTMLElement {
       bodyContent.style.display = 'none';
       errorBody.style.display = 'block';
       errorBody.textContent = response.error;
+      this.shadowRoot.getElementById('preview-wrap').innerHTML =
+        '<div class="preview-unsupported"><div>请求失败，无内容可预览</div></div>';
       return;
     }
 
@@ -282,6 +356,47 @@ class ResponseViewer extends HTMLElement {
     headersTbody.innerHTML = Object.entries(response.headers ?? {})
       .map(([k, v]) => `<tr><td>${this.#escHtml(k)}</td><td>${this.#escHtml(v)}</td></tr>`)
       .join('');
+
+    this.#renderPreview(response);
+  }
+
+  #renderPreview(response) {
+    const wrap = this.shadowRoot.getElementById('preview-wrap');
+    const contentType = response.headers?.['content-type'] ?? '';
+
+    // Binary content: blobUrl already created by http-client
+    if (response.blobUrl) {
+      this.#blobUrl = response.blobUrl;
+      if (/^image\//i.test(contentType)) {
+        wrap.innerHTML = `<img src="${this.#blobUrl}" alt="image preview" />`;
+      } else if (/^audio\//i.test(contentType)) {
+        wrap.innerHTML = `<audio controls src="${this.#blobUrl}"></audio>`;
+      } else if (/^video\//i.test(contentType)) {
+        wrap.innerHTML = `<video controls src="${this.#blobUrl}"></video>`;
+      } else if (contentType.includes('application/pdf')) {
+        wrap.innerHTML = `<iframe src="${this.#blobUrl}" title="PDF preview"></iframe>`;
+      } else {
+        wrap.innerHTML = `<div class="preview-unsupported"><div>不支持预览此类型</div><code>${this.#escHtml(contentType)}</code></div>`;
+      }
+      return;
+    }
+
+    // Text-based previewable types
+    if (contentType.includes('text/html')) {
+      const blob = new Blob([response.body], { type: 'text/html' });
+      this.#blobUrl = URL.createObjectURL(blob);
+      wrap.innerHTML = `<iframe src="${this.#blobUrl}" sandbox="allow-same-origin" title="HTML preview"></iframe>`;
+      return;
+    }
+
+    if (contentType.includes('image/svg+xml')) {
+      const blob = new Blob([response.body], { type: 'image/svg+xml' });
+      this.#blobUrl = URL.createObjectURL(blob);
+      wrap.innerHTML = `<img src="${this.#blobUrl}" alt="SVG preview" />`;
+      return;
+    }
+
+    wrap.innerHTML = `<div class="preview-unsupported"><div>此内容类型不支持预览</div>${contentType ? `<code>${this.#escHtml(contentType)}</code>` : ''}</div>`;
   }
 
   #formatSize(bytes) {
