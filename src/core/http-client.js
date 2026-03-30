@@ -36,17 +36,25 @@ export async function sendRequest({
         break;
       case 'form-urlencoded': {
         headersObj['Content-Type'] = 'application/x-www-form-urlencoded';
-        const pairs = (body.content ?? '')
-          .split('\n')
-          .map((line) => line.trim())
-          .filter(Boolean)
-          .map((line) => {
-            const idx = line.indexOf('=');
-            if (idx === -1) return null;
-            return `${encodeURIComponent(line.slice(0, idx).trim())}=${encodeURIComponent(line.slice(idx + 1).trim())}`;
-          })
-          .filter(Boolean);
-        fetchBody = pairs.join('&');
+        if (Array.isArray(body.pairs)) {
+          fetchBody = body.pairs
+            .filter((p) => p.enabled !== false && p.key)
+            .map((p) => `${encodeURIComponent(p.key)}=${encodeURIComponent(p.value ?? '')}`)
+            .join('&');
+        } else {
+          // legacy text content fallback
+          const pairs = (body.content ?? '')
+            .split('\n')
+            .map((l) => l.trim())
+            .filter(Boolean)
+            .map((l) => {
+              const idx = l.indexOf('=');
+              if (idx === -1) return null;
+              return `${encodeURIComponent(l.slice(0, idx).trim())}=${encodeURIComponent(l.slice(idx + 1).trim())}`;
+            })
+            .filter(Boolean);
+          fetchBody = pairs.join('&');
+        }
         break;
       }
       case 'raw':
@@ -87,9 +95,11 @@ export async function sendRequest({
     };
   } catch (err) {
     const duration = Math.round(performance.now() - startTime);
-    return {
-      error: err.message,
-      duration,
-    };
+    let message = err.message;
+    if (/Failed to fetch|NetworkError|Load failed|fetch/i.test(message)) {
+      message +=
+        '\n\n可能原因：① 服务器 CORS 限制（未允许跨域请求）② 网络不可达或已断开 ③ URL 地址错误';
+    }
+    return { error: message, duration };
   }
 }

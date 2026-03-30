@@ -88,6 +88,27 @@ template.innerHTML = `
       gap: 8px;
     }
     .empty-icon { font-size: 32px; opacity: 0.4; }
+    .loading-state {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      color: var(--color-text-tertiary);
+      font-size: 12px;
+    }
+    .spinner {
+      width: 22px;
+      height: 22px;
+      border: 2px solid var(--color-border);
+      border-top-color: var(--color-accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
     .body-content {
       flex: 1;
       padding: 12px;
@@ -139,6 +160,7 @@ template.innerHTML = `
       color: var(--color-error);
       font-family: var(--font-mono);
       font-size: 12px;
+      white-space: pre-wrap;
     }
   </style>
   <div class="toolbar">
@@ -154,6 +176,10 @@ template.innerHTML = `
     <div class="empty-state" id="empty-state">
       <div class="empty-icon">${ICON_RESPONSE}</div>
       <div>发送请求后查看响应</div>
+    </div>
+    <div class="loading-state" id="loading-state" style="display:none">
+      <div class="spinner"></div>
+      <div>发送中…</div>
     </div>
     <div class="body-content" id="body-content" style="display:none"></div>
     <div class="error-body" id="error-body" style="display:none"></div>
@@ -192,13 +218,14 @@ class ResponseViewer extends HTMLElement {
   setLoading() {
     const badge = this.shadowRoot.getElementById('status-badge');
     badge.className = 'status-badge visible';
-    badge.textContent = '发送中…';
+    badge.textContent = '发送中';
     badge.style.background = 'var(--color-accent-muted)';
     badge.style.color = 'var(--color-accent)';
     this.shadowRoot.getElementById('meta').textContent = '';
     this.shadowRoot.getElementById('empty-state').style.display = 'none';
     this.shadowRoot.getElementById('body-content').style.display = 'none';
     this.shadowRoot.getElementById('error-body').style.display = 'none';
+    this.shadowRoot.getElementById('loading-state').style.display = 'flex';
   }
 
   setResponse(response) {
@@ -210,6 +237,7 @@ class ResponseViewer extends HTMLElement {
     const headersTbody = this.shadowRoot.getElementById('headers-tbody');
 
     emptyState.style.display = 'none';
+    this.shadowRoot.getElementById('loading-state').style.display = 'none';
 
     if (response.error) {
       badge.className = 'status-badge visible error';

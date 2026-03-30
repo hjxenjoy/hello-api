@@ -5,6 +5,14 @@ import { interpolateRequest, envToVariables } from '../core/interpolation.js';
 import { updateRequest } from '../db/requests.js';
 
 const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];
+const RAW_CONTENT_TYPES = [
+  'text/plain',
+  'application/json',
+  'application/xml',
+  'text/html',
+  'application/javascript',
+  'text/css',
+];
 
 const METHOD_COLORS = {
   GET: '#22c55e',
@@ -177,7 +185,6 @@ template.innerHTML = `
     .body-type-bar {
       display: flex;
       gap: 4px;
-      margin-bottom: 8px;
       flex-shrink: 0;
     }
     .body-type-btn {
@@ -195,6 +202,45 @@ template.innerHTML = `
       color: var(--color-accent);
       border-color: var(--color-accent);
     }
+    .body-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-height: 0;
+    }
+    .body-empty {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--color-text-tertiary);
+      font-size: 12px;
+    }
+    .raw-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    .raw-bar-label {
+      font-size: 12px;
+      color: var(--color-text-secondary);
+      white-space: nowrap;
+    }
+    select.raw-type {
+      flex: 1;
+      border: 1px solid var(--color-input-border);
+      background: var(--color-input-bg);
+      border-radius: 3px;
+      padding: 4px 6px;
+      font-size: 12px;
+      font-family: var(--font-mono);
+      color: var(--color-text-primary);
+      outline: none;
+      cursor: pointer;
+    }
+    select.raw-type:focus { border-color: var(--color-input-border-focus); }
     .body-textarea {
       flex: 1;
       border: 1px solid var(--color-input-border);
@@ -247,7 +293,7 @@ template.innerHTML = `
       <button class="body-type-btn" data-type="form-urlencoded">Form</button>
       <button class="body-type-btn" data-type="raw">Raw</button>
     </div>
-    <textarea class="body-textarea" id="body-textarea" placeholder="请求体内容" style="display:none"></textarea>
+    <div class="body-area" id="body-area"></div>
   </div>
 `;
 
@@ -292,15 +338,33 @@ class RequestEditor extends HTMLElement {
         .forEach((p) => p.classList.toggle('active', p.id === `panel-${name}`));
     });
 
-    // Body type
+    // Body type switching
     this.shadowRoot.getElementById('body-type-bar').addEventListener('click', (e) => {
       const btn = e.target.closest('.body-type-btn');
       if (!btn) return;
+      const type = btn.dataset.type;
       this.shadowRoot
         .querySelectorAll('.body-type-btn')
         .forEach((b) => b.classList.toggle('active', b === btn));
-      const isNone = btn.dataset.type === 'none';
-      this.shadowRoot.getElementById('body-textarea').style.display = isNone ? 'none' : 'flex';
+
+      if (this.#request) {
+        // Capture current textarea/select values before switching
+        const prevType = this.#request.body?.type;
+        if (prevType === 'json' || prevType === 'raw') {
+          const ta = this.shadowRoot.getElementById('body-textarea');
+          if (ta) this.#request.body.content = ta.value;
+        }
+        if (prevType === 'raw') {
+          const rs = this.shadowRoot.getElementById('raw-type-select');
+          if (rs) this.#request.body.contentType = rs.value;
+        }
+        this.#request.body.type = type;
+        if (type === 'form-urlencoded' && !Array.isArray(this.#request.body.pairs)) {
+          this.#request.body.pairs = [];
+        }
+      }
+
+      this.#renderBodyArea();
       this.#scheduleSave();
     });
 
@@ -315,11 +379,6 @@ class RequestEditor extends HTMLElement {
     // Name save
     this.shadowRoot
       .getElementById('name-input')
-      .addEventListener('input', () => this.#scheduleSave());
-
-    // Body textarea
-    this.shadowRoot
-      .getElementById('body-textarea')
       .addEventListener('input', () => this.#scheduleSave());
 
     // Add param/header
@@ -340,6 +399,12 @@ class RequestEditor extends HTMLElement {
       ...request,
       headers: [...(request.headers ?? [])],
       params: [...(request.params ?? [])],
+      body: {
+        type: request.body?.type ?? 'none',
+        content: request.body?.content ?? '',
+        contentType: request.body?.contentType ?? 'text/plain',
+        pairs: Array.isArray(request.body?.pairs) ? [...request.body.pairs] : [],
+      },
     };
     this.#environment = environment;
 
@@ -356,17 +421,118 @@ class RequestEditor extends HTMLElement {
     this.#renderKvList('params');
     this.#renderKvList('headers');
 
-    const bodyType = request.body?.type ?? 'none';
+    const bodyType = this.#request.body.type;
     this.shadowRoot.querySelectorAll('.body-type-btn').forEach((b) => {
       b.classList.toggle('active', b.dataset.type === bodyType);
     });
-    const textarea = this.shadowRoot.getElementById('body-textarea');
-    textarea.style.display = bodyType === 'none' ? 'none' : 'flex';
-    textarea.value = request.body?.content ?? '';
+    this.#renderBodyArea();
   }
 
   setEnvironment(environment) {
     this.#environment = environment;
+  }
+
+  #renderBodyArea() {
+    const type = this.#request?.body?.type ?? 'none';
+    const area = this.shadowRoot.getElementById('body-area');
+    area.innerHTML = '';
+
+    if (type === 'none') {
+      const el = document.createElement('div');
+      el.className = 'body-empty';
+      el.textContent = '该请求无 Body';
+      area.appendChild(el);
+      return;
+    }
+
+    if (type === 'form-urlencoded') {
+      this.#renderFormPairs();
+      return;
+    }
+
+    if (type === 'raw') {
+      const rawBar = document.createElement('div');
+      rawBar.className = 'raw-bar';
+
+      const label = document.createElement('span');
+      label.className = 'raw-bar-label';
+      label.textContent = 'Content-Type';
+
+      const sel = document.createElement('select');
+      sel.className = 'raw-type';
+      sel.id = 'raw-type-select';
+      for (const ct of RAW_CONTENT_TYPES) {
+        const opt = document.createElement('option');
+        opt.value = ct;
+        opt.textContent = ct;
+        if (ct === (this.#request.body.contentType ?? 'text/plain')) opt.selected = true;
+        sel.appendChild(opt);
+      }
+      sel.addEventListener('change', () => this.#scheduleSave());
+
+      rawBar.appendChild(label);
+      rawBar.appendChild(sel);
+      area.appendChild(rawBar);
+    }
+
+    // json or raw: textarea
+    const textarea = document.createElement('textarea');
+    textarea.className = 'body-textarea';
+    textarea.id = 'body-textarea';
+    textarea.placeholder = type === 'json' ? 'JSON 内容' : '请求体内容';
+    textarea.value = this.#request.body.content ?? '';
+    textarea.addEventListener('input', () => this.#scheduleSave());
+    area.appendChild(textarea);
+  }
+
+  #renderFormPairs() {
+    const area = this.shadowRoot.getElementById('body-area');
+    area.innerHTML = '';
+
+    const pairs = this.#request.body.pairs ?? [];
+
+    const list = document.createElement('div');
+
+    pairs.forEach((item, i) => {
+      const row = document.createElement('div');
+      row.className = 'kv-row';
+      row.innerHTML = `
+        <input type="checkbox" class="kv-check" ${item.enabled !== false ? 'checked' : ''} />
+        <input class="kv-input" placeholder="字段名" value="${this.#esc(item.key)}" />
+        <input class="kv-input" placeholder="值" value="${this.#esc(item.value ?? '')}" />
+        <div class="kv-del" title="删除">×</div>
+      `;
+      row.querySelector('.kv-check').addEventListener('change', (e) => {
+        pairs[i].enabled = e.target.checked;
+        this.#scheduleSave();
+      });
+      row.querySelectorAll('.kv-input')[0].addEventListener('input', (e) => {
+        pairs[i].key = e.target.value;
+        this.#scheduleSave();
+      });
+      row.querySelectorAll('.kv-input')[1].addEventListener('input', (e) => {
+        pairs[i].value = e.target.value;
+        this.#scheduleSave();
+      });
+      row.querySelector('.kv-del').addEventListener('click', () => {
+        pairs.splice(i, 1);
+        this.#renderFormPairs();
+        this.#scheduleSave();
+      });
+      list.appendChild(row);
+    });
+
+    area.appendChild(list);
+
+    const addBtn = document.createElement('button');
+    addBtn.className = 'add-row-btn';
+    addBtn.textContent = '+ 添加字段';
+    addBtn.addEventListener('click', () => {
+      this.#request.body.pairs.push({ key: '', value: '', enabled: true });
+      this.#renderFormPairs();
+      this.#scheduleSave();
+    });
+    area.appendChild(addBtn);
   }
 
   #renderKvList(type) {
@@ -409,7 +575,20 @@ class RequestEditor extends HTMLElement {
     const name = this.shadowRoot.getElementById('name-input').value;
     const activeType =
       this.shadowRoot.querySelector('.body-type-btn.active')?.dataset.type ?? 'none';
-    const bodyContent = this.shadowRoot.getElementById('body-textarea').value;
+
+    const body = { type: activeType };
+    if (activeType === 'form-urlencoded') {
+      body.pairs = this.#request?.body?.pairs ?? [];
+    } else if (activeType === 'raw') {
+      body.content = this.shadowRoot.getElementById('body-textarea')?.value ?? '';
+      body.contentType =
+        this.shadowRoot.getElementById('raw-type-select')?.value ??
+        this.#request?.body?.contentType ??
+        'text/plain';
+    } else if (activeType !== 'none') {
+      body.content = this.shadowRoot.getElementById('body-textarea')?.value ?? '';
+    }
+
     return {
       ...this.#request,
       name,
@@ -417,7 +596,7 @@ class RequestEditor extends HTMLElement {
       url,
       headers: this.#request?.headers ?? [],
       params: this.#request?.params ?? [],
-      body: { type: activeType, content: bodyContent },
+      body,
     };
   }
 
