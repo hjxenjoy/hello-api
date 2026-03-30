@@ -4,6 +4,7 @@ const ICON_CHEVRON = `<svg width="10" height="10" viewBox="0 0 10 10" fill="none
 const ICON_SLIDERS = `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><path d="M2 5h10"/><circle cx="5" cy="5" r="1.5" fill="currentColor" stroke="none"/><path d="M2 9h10"/><circle cx="9" cy="9" r="1.5" fill="currentColor" stroke="none"/></svg>`;
 const ICON_FOLDER = `<svg width="32" height="32" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11a2 2 0 012-2h7l2.5 2.5H26a2 2 0 012 2v9a2 2 0 01-2 2H6a2 2 0 01-2-2V11z"/></svg>`;
 const ICON_SW = `<svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 1.5L2 3.5v3c0 2.8 2 4.5 4.5 5 2.5-.5 4.5-2.2 4.5-5v-3L6.5 1.5z"/><path d="M4.5 6.5l1.5 1.5 2.5-2.5"/></svg>`;
+const ICON_COPY = `<svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="6" height="6" rx="1"/><path d="M1.5 7.5V2a1 1 0 011-1h5.5"/></svg>`;
 
 import {
   listProjects,
@@ -13,7 +14,7 @@ import {
   deleteCollection,
   listCollections,
 } from '../db/projects.js';
-import { listRequests, createRequest, deleteRequest } from '../db/requests.js';
+import { listRequests, createRequest, deleteRequest, duplicateRequest } from '../db/requests.js';
 import { showPrompt, showConfirm } from '../core/dialog.js';
 
 const template = document.createElement('template');
@@ -423,11 +424,17 @@ class SidebarNav extends HTMLElement {
                 <span class="method-badge" style="color:${color}">${this.#esc(req.method)}</span>
                 <span class="request-name">${this.#esc(req.name)}</span>
                 <div class="row-actions">
+                  <div class="action-btn" data-action="duplicate" title="复制请求">${ICON_COPY}</div>
                   <div class="action-btn del" data-action="delete" title="删除请求">×</div>
                 </div>
               `;
               reqRow.addEventListener('click', async (e) => {
-                if (e.target.closest('[data-action]')?.dataset.action === 'delete') {
+                const action = e.target.closest('[data-action]')?.dataset.action;
+                if (action === 'duplicate') {
+                  await this.#duplicateReq(req.id);
+                  return;
+                }
+                if (action === 'delete') {
                   await this.#deleteReq(req.id);
                   return;
                 }
@@ -505,6 +512,11 @@ class SidebarNav extends HTMLElement {
         composed: true,
       })
     );
+  }
+
+  async #duplicateReq(id) {
+    await duplicateRequest(id);
+    await this.refresh();
   }
 
   async #deleteReq(id) {

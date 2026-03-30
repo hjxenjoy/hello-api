@@ -377,6 +377,14 @@ class RequestEditor extends HTMLElement {
     // Send
     this.shadowRoot.getElementById('send-btn').addEventListener('click', () => this.#send());
 
+    // Keyboard shortcut: ⌘+Enter / Ctrl+Enter
+    this.addEventListener('keydown', (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        e.preventDefault();
+        this.#send();
+      }
+    });
+
     // URL auto-save
     this.shadowRoot
       .getElementById('url-input')
