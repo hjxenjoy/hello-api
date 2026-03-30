@@ -252,7 +252,7 @@ template.innerHTML = `
     <button
       class="sw-btn"
       id="sw-btn"
-      data-tooltip="注销 Service Worker（开发调试用，注销后自动刷新页面）"
+      data-tooltip="注销 Service Worker"
     >${ICON_SW}</button>
   </div>
 `;
