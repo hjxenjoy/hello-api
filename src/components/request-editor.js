@@ -158,7 +158,6 @@ template.innerHTML = `
       font-family: var(--font-mono);
       color: var(--color-text-primary);
       outline: none;
-      width: 100%;
       min-width: 0;
     }
     .kv-input::placeholder { color: var(--color-input-placeholder); font-family: var(--font-sans); }
