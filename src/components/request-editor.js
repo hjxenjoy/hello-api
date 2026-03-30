@@ -383,6 +383,8 @@ class RequestEditor extends HTMLElement {
       this.shadowRoot
         .querySelectorAll('.panel')
         .forEach((p) => p.classList.toggle('active', p.id === `panel-${name}`));
+      // Render body area only when panel is visible (CodeMirror needs a sized container)
+      if (name === 'body' && this.#request) this.#renderBodyArea();
     });
 
     // Body type switching
@@ -476,11 +478,20 @@ class RequestEditor extends HTMLElement {
     this.#renderKvList('params');
     this.#renderKvList('headers');
 
+    // Destroy any existing editor — new request content must be loaded fresh
+    if (this.#cmEditor) {
+      this.#cmEditor.destroy();
+      this.#cmEditor = null;
+    }
+
     const bodyType = this.#request.body.type;
     this.shadowRoot.querySelectorAll('.body-type-btn').forEach((b) => {
       b.classList.toggle('active', b.dataset.type === bodyType);
     });
-    this.#renderBodyArea();
+    // Only render body area when the panel is already visible
+    if (this.shadowRoot.getElementById('panel-body')?.classList.contains('active')) {
+      this.#renderBodyArea();
+    }
   }
 
   setEnvironment(environment) {
@@ -488,13 +499,17 @@ class RequestEditor extends HTMLElement {
   }
 
   #renderBodyArea() {
+    const type = this.#request?.body?.type ?? 'none';
+
+    // Reuse existing json editor when switching back to the Body tab
+    if (type === 'json' && this.#cmEditor) return;
+
     // Destroy any existing CodeMirror instance before clearing the DOM
     if (this.#cmEditor) {
       this.#cmEditor.destroy();
       this.#cmEditor = null;
     }
 
-    const type = this.#request?.body?.type ?? 'none';
     const area = this.shadowRoot.getElementById('body-area');
     area.innerHTML = '';
 
