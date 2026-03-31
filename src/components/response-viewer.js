@@ -1,6 +1,7 @@
 // <response-viewer> Web Component - response display (status, timing, body)
 
 const ICON_RESPONSE = `<svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 10H10a4 4 0 000 8h4"/><path d="M10 14l-4 4 4 4"/></svg>`;
+const ICON_COPY = `<svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="7.5" height="7.5" rx="1"/><path d="M2 9V2.5a1 1 0 011-1H9"/></svg>`;
 
 const template = document.createElement('template');
 template.innerHTML = `
@@ -60,6 +61,22 @@ template.innerHTML = `
       border: 1px solid var(--color-border);
       white-space: nowrap;
     }
+    .copy-body-btn {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 8px;
+      font-size: 11px;
+      color: var(--color-text-secondary);
+      background: none;
+      border: 1px solid var(--color-border);
+      border-radius: 3px;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .copy-body-btn:hover { color: var(--color-text-primary); background: var(--color-surface-3); border-color: var(--color-border-strong); }
+    .copy-body-btn:disabled { opacity: 0.35; cursor: not-allowed; }
     .tabs {
       display: flex;
       border-bottom: 1px solid var(--color-border);
@@ -221,6 +238,7 @@ template.innerHTML = `
     <span class="title">响应</span>
     <div class="status-badge" id="status-badge"></div>
     <div class="meta" id="meta"></div>
+    <button class="copy-body-btn" id="copy-body-btn" disabled>${ICON_COPY} 复制</button>
   </div>
   <div class="tabs" id="tabs">
     <div class="tab active" data-tab="body">Body</div>
@@ -256,12 +274,14 @@ template.innerHTML = `
 
 class ResponseViewer extends HTMLElement {
   #blobUrl = null;
+  #rawBody = null;
 
   connectedCallback() {
     if (!this.shadowRoot) {
       this.attachShadow({ mode: 'open' });
       this.shadowRoot.appendChild(template.content.cloneNode(true));
       this.#bindTabs();
+      this.#bindCopyBody();
     }
   }
 
@@ -283,6 +303,18 @@ class ResponseViewer extends HTMLElement {
     });
   }
 
+  #bindCopyBody() {
+    this.shadowRoot.getElementById('copy-body-btn').addEventListener('click', async () => {
+      if (this.#rawBody === null) return;
+      await navigator.clipboard.writeText(this.#rawBody);
+      const btn = this.shadowRoot.getElementById('copy-body-btn');
+      btn.textContent = '已复制！';
+      setTimeout(() => {
+        btn.innerHTML = `${ICON_COPY} 复制`;
+      }, 2000);
+    });
+  }
+
   #revokeBlobUrl() {
     if (this.#blobUrl) {
       URL.revokeObjectURL(this.#blobUrl);
@@ -292,6 +324,9 @@ class ResponseViewer extends HTMLElement {
 
   setLoading() {
     this.#revokeBlobUrl();
+    this.#rawBody = null;
+    this.shadowRoot.getElementById('copy-body-btn').disabled = true;
+    this.shadowRoot.getElementById('copy-body-btn').innerHTML = `${ICON_COPY} 复制`;
     const badge = this.shadowRoot.getElementById('status-badge');
     badge.className = 'status-badge visible';
     badge.textContent = '发送中';
@@ -320,6 +355,8 @@ class ResponseViewer extends HTMLElement {
     this.shadowRoot.getElementById('loading-state').style.display = 'none';
 
     if (response.error) {
+      this.#rawBody = null;
+      this.shadowRoot.getElementById('copy-body-btn').disabled = true;
       badge.className = 'status-badge visible error';
       badge.style.cssText = '';
       badge.textContent = '错误';
@@ -350,6 +387,10 @@ class ResponseViewer extends HTMLElement {
 
     errorBody.style.display = 'none';
     bodyContent.style.display = 'block';
+    this.#rawBody = response.body ?? '';
+    const copyBtn = this.shadowRoot.getElementById('copy-body-btn');
+    copyBtn.disabled = false;
+    copyBtn.innerHTML = `${ICON_COPY} 复制`;
 
     const contentType = response.headers?.['content-type'] ?? '';
     if (contentType.includes('application/json')) {

@@ -14,6 +14,8 @@ const ICON_ADD_REQ = `<svg width="13" height="13" viewBox="0 0 14 14" fill="none
 // Action icons for row buttons
 const ICON_PLUS = `<svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M5.5 1.5v8M1.5 5.5h8"/></svg>`;
 const ICON_CROSS = `<svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M2 2l7 7M9 2l-7 7"/></svg>`;
+const ICON_EXPORT = `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 1.5v7"/><path d="M4.5 6L7 8.5 9.5 6"/><path d="M2 10.5v1a1 1 0 001 1h8a1 1 0 001-1v-1"/></svg>`;
+const ICON_IMPORT = `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 9.5v-7"/><path d="M4.5 5L7 2.5 9.5 5"/><path d="M2 10.5v1a1 1 0 001 1h8a1 1 0 001-1v-1"/></svg>`;
 
 import {
   listProjects,
@@ -266,8 +268,11 @@ template.innerHTML = `
     <span class="header-title">项目</span>
     <div class="icon-btn" id="new-request-btn" title="快速新建请求">${ICON_ADD_REQ}</div>
     <div class="icon-btn" id="new-project-btn" title="新建项目">${ICON_PLUS}</div>
+    <div class="icon-btn" id="export-btn" title="导出所有数据">${ICON_EXPORT}</div>
+    <div class="icon-btn" id="import-btn" title="从文件导入">${ICON_IMPORT}</div>
     <div class="icon-btn" id="env-btn" title="环境变量">${ICON_SLIDERS}</div>
   </div>
+  <input type="file" id="import-file-input" accept=".json" style="display:none" />
   <div class="tree" id="tree">
     <div class="empty-projects" id="empty-state">
       <div class="empty-icon">${ICON_FOLDER}</div>
@@ -336,6 +341,17 @@ class SidebarNav extends HTMLElement {
       .addEventListener('click', () => this.#quickAddRequest());
     this.shadowRoot.getElementById('env-btn').addEventListener('click', () => {
       this.dispatchEvent(new CustomEvent('open-env-manager', { bubbles: true, composed: true }));
+    });
+    this.shadowRoot
+      .getElementById('export-btn')
+      .addEventListener('click', () => this.#exportData());
+    this.shadowRoot.getElementById('import-btn').addEventListener('click', () => {
+      this.shadowRoot.getElementById('import-file-input').click();
+    });
+    this.shadowRoot.getElementById('import-file-input').addEventListener('change', (e) => {
+      const file = e.target.files?.[0];
+      if (file) this.#importData(file);
+      e.target.value = '';
     });
     this.shadowRoot.getElementById('sw-btn').addEventListener('click', () => this.#unregisterSW());
   }
@@ -685,6 +701,87 @@ class SidebarNav extends HTMLElement {
     await this.refresh();
     if (this.#activeRequestId === null) {
       this.dispatchEvent(new CustomEvent('request-cleared', { bubbles: true, composed: true }));
+    }
+  }
+
+  async #exportData() {
+    const projects = await listProjects();
+    const result = { version: 1, exportedAt: new Date().toISOString(), projects: [] };
+    for (const project of projects) {
+      const pData = {
+        name: project.name,
+        description: project.description ?? '',
+        order: project.order ?? 0,
+        collections: [],
+      };
+      const collections = await listCollections(project.id);
+      for (const col of collections) {
+        const cData = {
+          name: col.name,
+          description: col.description ?? '',
+          order: col.order ?? 0,
+          requests: [],
+        };
+        const requests = await listRequests(col.id);
+        for (const req of requests) {
+          // Strip storage-only fields
+          const { id, collectionId, createdAt, updatedAt, lastResponse, ...rest } = req;
+          cData.requests.push(rest);
+        }
+        pData.collections.push(cData);
+      }
+      result.projects.push(pData);
+    }
+    const json = JSON.stringify(result, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `hapi-export-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  async #importData(file) {
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      if (!data.projects || !Array.isArray(data.projects)) {
+        throw new Error('无效的导入文件格式');
+      }
+      let importedReqs = 0;
+      for (const p of data.projects) {
+        if (!p.name) continue;
+        const project = await createProject({ name: p.name, description: p.description ?? '' });
+        this.#expanded.add(project.id);
+        for (const c of p.collections ?? []) {
+          if (!c.name) continue;
+          const col = await createCollection({
+            projectId: project.id,
+            name: c.name,
+            description: c.description ?? '',
+          });
+          this.#expandedCollections.add(col.id);
+          for (const req of c.requests ?? []) {
+            await createRequest({ ...req, collectionId: col.id });
+            importedReqs++;
+          }
+        }
+      }
+      this.#persistExpanded();
+      await this.refresh();
+      await showConfirm(`成功导入 ${data.projects.length} 个项目，共 ${importedReqs} 条请求。`, {
+        title: '导入成功',
+        confirmLabel: '确定',
+      });
+    } catch (err) {
+      await showConfirm(`导入失败：${err.message}`, {
+        title: '导入错误',
+        confirmLabel: '确定',
+        danger: true,
+      });
     }
   }
 
