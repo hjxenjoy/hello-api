@@ -24,6 +24,7 @@ export async function createRequest(data) {
     headers: data.headers ?? [],
     params: data.params ?? [],
     body: data.body ?? { type: 'none', content: '' },
+    auth: data.auth ?? { type: 'none' },
     description: data.description ?? '',
     nameIsAuto: data.nameIsAuto ?? true,
     order: data.order ?? 0,

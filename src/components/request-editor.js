@@ -1,6 +1,7 @@
 // <request-editor> Web Component - request builder (Method, URL, Headers, Body)
 
 const ICON_CROSS = `<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M2 2l6 6M8 2l-6 6"/></svg>`;
+const ICON_CURL = `<svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1.5" y="2" width="10" height="9" rx="1.5"/><path d="M3.5 6.5l2 1.5-2 1.5"/><path d="M7.5 9.5h2"/></svg>`;
 
 import { sendRequest } from '../core/http-client.js';
 import { interpolateRequest, envToVariables } from '../core/interpolation.js';
@@ -333,6 +334,103 @@ template.innerHTML = `
       color: var(--color-text-tertiary);
       font-size: 12px;
     }
+    .curl-btn {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 6px 10px;
+      background: var(--color-surface-2);
+      color: var(--color-text-secondary);
+      border: 1px solid var(--color-border);
+      border-radius: 4px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .curl-btn:hover {
+      color: var(--color-text-primary);
+      background: var(--color-surface-3);
+      border-color: var(--color-border-strong);
+    }
+    .tab .dot {
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--color-accent);
+      margin-left: 4px;
+      vertical-align: middle;
+    }
+    .auth-type-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    .auth-type-label {
+      font-size: 12px;
+      color: var(--color-text-secondary);
+      white-space: nowrap;
+    }
+    select.auth-type-select {
+      border: 1px solid var(--color-input-border);
+      background: var(--color-input-bg);
+      border-radius: 4px;
+      padding: 5px 8px;
+      font-size: 12px;
+      color: var(--color-text-primary);
+      outline: none;
+      cursor: pointer;
+    }
+    select.auth-type-select:focus { border-color: var(--color-input-border-focus); }
+    .auth-fields { flex: 1; min-height: 0; overflow-y: auto; }
+    .auth-empty {
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--color-text-tertiary);
+      font-size: 12px;
+    }
+    .auth-form {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 4px 0;
+    }
+    .auth-field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .auth-label {
+      font-size: 11px;
+      color: var(--color-text-secondary);
+      font-weight: 500;
+    }
+    .auth-input {
+      border: 1px solid var(--color-input-border);
+      background: var(--color-input-bg);
+      border-radius: 4px;
+      padding: 6px 10px;
+      font-size: 12px;
+      font-family: var(--font-mono);
+      color: var(--color-text-primary);
+      outline: none;
+    }
+    .auth-input:focus { border-color: var(--color-input-border-focus); }
+    select.auth-in-select {
+      border: 1px solid var(--color-input-border);
+      background: var(--color-input-bg);
+      border-radius: 4px;
+      padding: 5px 8px;
+      font-size: 12px;
+      color: var(--color-text-primary);
+      outline: none;
+      cursor: pointer;
+    }
+    select.auth-in-select:focus { border-color: var(--color-input-border-focus); }
   </style>
   <div class="request-name" id="name-bar" style="display:none">
     <input class="request-name-input" id="name-input" placeholder="请求名称" />
@@ -341,11 +439,13 @@ template.innerHTML = `
     <select class="method" id="method-select"></select>
     <input class="url-input" id="url-input" placeholder="https://api.example.com/endpoint" />
     <button class="send-btn" id="send-btn">发送</button>
+    <button class="curl-btn" id="curl-btn" title="复制为 cURL">${ICON_CURL}</button>
   </div>
   <div class="tabs" id="tabs">
     <div class="tab active" data-tab="params">Params</div>
     <div class="tab" data-tab="headers">Headers</div>
     <div class="tab" data-tab="body">Body</div>
+    <div class="tab" data-tab="auth">Auth</div>
   </div>
   <div class="panel active" id="panel-params">
     <div class="kv-list" id="params-list"></div>
@@ -363,6 +463,18 @@ template.innerHTML = `
       <button class="body-type-btn" data-type="raw">Raw</button>
     </div>
     <div class="body-area" id="body-area"></div>
+  </div>
+  <div class="panel" id="panel-auth">
+    <div class="auth-type-row">
+      <span class="auth-type-label">认证类型</span>
+      <select class="auth-type-select" id="auth-type">
+        <option value="none">无</option>
+        <option value="bearer">Bearer Token</option>
+        <option value="basic">Basic Auth</option>
+        <option value="apikey">API Key</option>
+      </select>
+    </div>
+    <div class="auth-fields" id="auth-fields"></div>
   </div>
 `;
 
@@ -408,6 +520,7 @@ class RequestEditor extends HTMLElement {
         .forEach((p) => p.classList.toggle('active', p.id === `panel-${name}`));
       // Render body area only when panel is visible (CodeMirror needs a sized container)
       if (name === 'body' && this.#request) this.#renderBodyArea();
+      if (name === 'auth' && this.#request) this.#renderAuthPanel();
     });
 
     // Body type switching
@@ -466,6 +579,24 @@ class RequestEditor extends HTMLElement {
       this.#scheduleSave();
     });
 
+    // Auth type change
+    this.shadowRoot.getElementById('auth-type').addEventListener('change', (e) => {
+      if (!this.#request) return;
+      this.#request.auth = { type: e.target.value };
+      this.#renderAuthPanel();
+      this.#updateAuthDot();
+      this.#scheduleSave();
+    });
+
+    // Copy as cURL
+    this.shadowRoot.getElementById('curl-btn').addEventListener('click', async () => {
+      const cmd = this.#buildCurlCommand();
+      await navigator.clipboard.writeText(cmd);
+      const btn = this.shadowRoot.getElementById('curl-btn');
+      btn.title = '已复制！';
+      setTimeout(() => (btn.title = '复制为 cURL'), 2000);
+    });
+
     // Add param/header
     this.shadowRoot.getElementById('add-param-btn').addEventListener('click', () => {
       if (this.#request) this.#request.params.push({ key: '', value: '', enabled: true });
@@ -490,6 +621,7 @@ class RequestEditor extends HTMLElement {
         contentType: request.body?.contentType ?? 'text/plain',
         pairs: Array.isArray(request.body?.pairs) ? [...request.body.pairs] : [],
       },
+      auth: request.auth ? { ...request.auth } : { type: 'none' },
     };
     this.#environment = environment;
 
@@ -520,6 +652,12 @@ class RequestEditor extends HTMLElement {
     if (this.shadowRoot.getElementById('panel-body')?.classList.contains('active')) {
       this.#renderBodyArea();
     }
+
+    // Sync auth panel if already visible
+    if (this.shadowRoot.getElementById('panel-auth')?.classList.contains('active')) {
+      this.#renderAuthPanel();
+    }
+    this.#updateAuthDot();
   }
 
   setEnvironment(environment) {
@@ -881,8 +1019,9 @@ class RequestEditor extends HTMLElement {
     const req = this.#buildCurrentRequest();
     const vars = envToVariables(this.#environment);
     const interpolated = interpolateRequest(req, vars);
+    const withAuth = this.#applyAuth(interpolated);
 
-    const response = await sendRequest(interpolated);
+    const response = await sendRequest(withAuth);
 
     btn.disabled = false;
     btn.textContent = '发送';
@@ -908,6 +1047,188 @@ class RequestEditor extends HTMLElement {
       .replace(/&/g, '&amp;')
       .replace(/"/g, '&quot;')
       .replace(/</g, '&lt;');
+  }
+
+  #renderAuthPanel() {
+    const type = this.#request?.auth?.type ?? 'none';
+    this.shadowRoot.getElementById('auth-type').value = type;
+    const fields = this.shadowRoot.getElementById('auth-fields');
+    fields.innerHTML = '';
+
+    if (type === 'none') {
+      const el = document.createElement('div');
+      el.className = 'auth-empty';
+      el.textContent = '未配置认证';
+      fields.appendChild(el);
+      return;
+    }
+
+    const form = document.createElement('div');
+    form.className = 'auth-form';
+
+    if (type === 'bearer') {
+      form.appendChild(
+        this.#authField('Token', this.#request.auth.token ?? '', 'Bearer token 值', (v) => {
+          this.#request.auth.token = v;
+        })
+      );
+    } else if (type === 'basic') {
+      form.appendChild(
+        this.#authField('用户名', this.#request.auth.username ?? '', '用户名', (v) => {
+          this.#request.auth.username = v;
+        })
+      );
+      form.appendChild(
+        this.#authField('密码', this.#request.auth.password ?? '', '密码', (v) => {
+          this.#request.auth.password = v;
+        })
+      );
+    } else if (type === 'apikey') {
+      form.appendChild(
+        this.#authField('Key', this.#request.auth.key ?? '', 'Header / 参数名', (v) => {
+          this.#request.auth.key = v;
+        })
+      );
+      form.appendChild(
+        this.#authField('Value', this.#request.auth.value ?? '', 'API Key 值', (v) => {
+          this.#request.auth.value = v;
+        })
+      );
+
+      const inField = document.createElement('div');
+      inField.className = 'auth-field';
+      const inLabel = document.createElement('label');
+      inLabel.className = 'auth-label';
+      inLabel.textContent = '添加到';
+      const inSel = document.createElement('select');
+      inSel.className = 'auth-in-select';
+      for (const [val, txt] of [
+        ['header', 'Header'],
+        ['query', 'Query Params'],
+      ]) {
+        const opt = document.createElement('option');
+        opt.value = val;
+        opt.textContent = txt;
+        if ((this.#request.auth.in ?? 'header') === val) opt.selected = true;
+        inSel.appendChild(opt);
+      }
+      inSel.addEventListener('change', () => {
+        this.#request.auth.in = inSel.value;
+        this.#scheduleSave();
+      });
+      inField.appendChild(inLabel);
+      inField.appendChild(inSel);
+      form.appendChild(inField);
+    }
+
+    fields.appendChild(form);
+  }
+
+  #authField(label, value, placeholder, onChange) {
+    const field = document.createElement('div');
+    field.className = 'auth-field';
+    const lbl = document.createElement('label');
+    lbl.className = 'auth-label';
+    lbl.textContent = label;
+    const input = document.createElement('input');
+    input.className = 'auth-input';
+    input.value = value;
+    input.placeholder = placeholder;
+    input.addEventListener('input', () => {
+      onChange(input.value);
+      this.#updateAuthDot();
+      this.#scheduleSave();
+    });
+    field.appendChild(lbl);
+    field.appendChild(input);
+    return field;
+  }
+
+  #updateAuthDot() {
+    const tab = this.shadowRoot.querySelector('.tab[data-tab="auth"]');
+    if (!tab) return;
+    const type = this.#request?.auth?.type ?? 'none';
+    const existing = tab.querySelector('.dot');
+    if (type !== 'none') {
+      if (!existing) {
+        const dot = document.createElement('span');
+        dot.className = 'dot';
+        tab.appendChild(dot);
+      }
+    } else {
+      existing?.remove();
+    }
+  }
+
+  #applyAuth(req) {
+    const auth = this.#request?.auth;
+    if (!auth || auth.type === 'none') return req;
+
+    const headers = [...(req.headers ?? [])];
+    const params = [...(req.params ?? [])];
+
+    if (auth.type === 'bearer' && auth.token) {
+      headers.push({ key: 'Authorization', value: `Bearer ${auth.token}`, enabled: true });
+    } else if (auth.type === 'basic') {
+      const encoded = btoa(`${auth.username ?? ''}:${auth.password ?? ''}`);
+      headers.push({ key: 'Authorization', value: `Basic ${encoded}`, enabled: true });
+    } else if (auth.type === 'apikey' && auth.key) {
+      if ((auth.in ?? 'header') === 'header') {
+        headers.push({ key: auth.key, value: auth.value ?? '', enabled: true });
+      } else {
+        params.push({ key: auth.key, value: auth.value ?? '', enabled: true });
+      }
+    }
+
+    return { ...req, headers, params };
+  }
+
+  #buildCurlCommand() {
+    const req = this.#buildCurrentRequest();
+    const vars = envToVariables(this.#environment);
+    const interpolated = interpolateRequest(req, vars);
+    const withAuth = this.#applyAuth(interpolated);
+
+    const parts = [`curl -X ${withAuth.method}`];
+
+    let url = withAuth.url || '';
+    const enabledParams = (withAuth.params ?? []).filter((p) => p.enabled !== false && p.key);
+    if (enabledParams.length) {
+      const qs = enabledParams
+        .map((p) => `${encodeURIComponent(p.key)}=${encodeURIComponent(p.value ?? '')}`)
+        .join('&');
+      url += (url.includes('?') ? '&' : '?') + qs;
+    }
+    parts.push(this.#shellQuote(url));
+
+    for (const h of withAuth.headers ?? []) {
+      if (h.enabled !== false && h.key) {
+        parts.push(`-H ${this.#shellQuote(`${h.key}: ${h.value ?? ''}`)}`);
+      }
+    }
+
+    const body = withAuth.body;
+    if (body?.type === 'json' && body.content) {
+      parts.push(`-H ${this.#shellQuote('Content-Type: application/json')}`);
+      parts.push(`-d ${this.#shellQuote(body.content)}`);
+    } else if (body?.type === 'raw' && body.content) {
+      parts.push(`-H ${this.#shellQuote(`Content-Type: ${body.contentType ?? 'text/plain'}`)}`);
+      parts.push(`-d ${this.#shellQuote(body.content)}`);
+    } else if (body?.type === 'form-urlencoded') {
+      const enabledPairs = (body.pairs ?? []).filter((p) => p.enabled !== false && p.key);
+      if (enabledPairs.length) {
+        const formData = enabledPairs
+          .map((p) => `${encodeURIComponent(p.key)}=${encodeURIComponent(p.value ?? '')}`)
+          .join('&');
+        parts.push(`--data-urlencode ${this.#shellQuote(formData)}`);
+      }
+    }
+
+    return parts.join(' \\\n  ');
+  }
+
+  #shellQuote(str) {
+    return `'${String(str).replace(/'/g, "'\\''")}'`;
   }
 }
 
