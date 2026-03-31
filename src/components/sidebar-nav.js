@@ -11,6 +11,10 @@ const ICON_COLLECTION = `<svg width="13" height="13" viewBox="0 0 14 14" fill="n
 const ICON_REQUEST_FILE = `<svg width="12" height="12" viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="1.5" width="9" height="10" rx="1.5"/><path d="M4 4.5h5M4 6.5h3.5M4 8.5h2"/></svg>`;
 const ICON_PENCIL = `<svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.5 1.5l2 2-6 6H2.5V7.5l6-6z"/><path d="M7 3l2 2"/></svg>`;
 const ICON_ADD_REQ = `<svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 1.5H3a1.5 1.5 0 00-1.5 1.5v8A1.5 1.5 0 003 12.5h8a1.5 1.5 0 001.5-1.5V6.5"/><path d="M10.5 1.5v4M8.5 3.5h4"/></svg>`;
+// Action icons for row buttons
+const ICON_PLUS = `<svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M5.5 1.5v8M1.5 5.5h8"/></svg>`;
+const ICON_TRASH = `<svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 3h8"/><path d="M3.5 3V2h4v1"/><path d="M2.5 3l.5 5.5h5l.5-5.5"/></svg>`;
+const ICON_NEW_PROJECT = `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 5.5a1 1 0 011-1h2.8l1.5 1.5H12a1 1 0 011 1v4a1 1 0 01-1 1H2.5a1 1 0 01-1-1V5.5z"/><path d="M7 7.5v2.5M5.75 8.75h2.5"/></svg>`;
 
 import {
   listProjects,
@@ -72,7 +76,6 @@ template.innerHTML = `
       color: var(--color-text-secondary);
       cursor: pointer;
       transition: background 0.15s, color 0.15s;
-      font-size: 18px;
       flex-shrink: 0;
     }
     .icon-btn:hover { background: var(--color-surface-3); color: var(--color-text-primary); }
@@ -146,7 +149,6 @@ template.innerHTML = `
       border-radius: 3px;
       color: var(--color-text-tertiary);
       cursor: pointer;
-      font-size: 13px;
       transition: background 0.1s, color 0.1s;
     }
     .action-btn:hover { background: var(--color-border); color: var(--color-text-primary); }
@@ -264,7 +266,7 @@ template.innerHTML = `
   <div class="header">
     <span class="header-title">项目</span>
     <div class="icon-btn" id="new-request-btn" title="快速新建请求">${ICON_ADD_REQ}</div>
-    <div class="icon-btn" id="new-project-btn" title="新建项目">+</div>
+    <div class="icon-btn" id="new-project-btn" title="新建项目">${ICON_NEW_PROJECT}</div>
     <div class="icon-btn" id="env-btn" title="环境变量">${ICON_SLIDERS}</div>
   </div>
   <div class="tree" id="tree">
@@ -391,8 +393,8 @@ class SidebarNav extends HTMLElement {
         <div class="project-name">${this.#esc(project.name)}</div>
         <div class="row-actions">
           <div class="action-btn" data-action="rename" title="编辑">${ICON_PENCIL}</div>
-          <div class="action-btn" data-action="add-collection" title="新建集合">+</div>
-          <div class="action-btn del" data-action="delete" title="删除项目">×</div>
+          <div class="action-btn" data-action="add-collection" title="新建集合">${ICON_PLUS}</div>
+          <div class="action-btn del" data-action="delete" title="删除项目">${ICON_TRASH}</div>
         </div>
       `;
 
@@ -443,8 +445,8 @@ class SidebarNav extends HTMLElement {
             <div class="collection-name">${this.#esc(col.name)}</div>
             <div class="row-actions">
               <div class="action-btn" data-action="rename" title="编辑">${ICON_PENCIL}</div>
-              <div class="action-btn" data-action="add-request" title="新建请求">+</div>
-              <div class="action-btn del" data-action="delete" title="删除集合">×</div>
+              <div class="action-btn" data-action="add-request" title="新建请求">${ICON_PLUS}</div>
+              <div class="action-btn del" data-action="delete" title="删除集合">${ICON_TRASH}</div>
             </div>
           `;
 
@@ -488,7 +490,7 @@ class SidebarNav extends HTMLElement {
                 <div class="row-actions">
                   <div class="action-btn" data-action="rename" title="重命名">${ICON_PENCIL}</div>
                   <div class="action-btn" data-action="duplicate" title="复制请求">${ICON_COPY}</div>
-                  <div class="action-btn del" data-action="delete" title="删除请求">×</div>
+                  <div class="action-btn del" data-action="delete" title="删除请求">${ICON_TRASH}</div>
                 </div>
               `;
               reqRow.addEventListener('click', async (e) => {
