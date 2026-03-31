@@ -5,6 +5,7 @@ const ICON_SUN = `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" st
 const ICON_MOON = `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11.5 8.5A5.5 5.5 0 015.5 2a5.5 5.5 0 100 11 5.5 5.5 0 006-4.5z"/></svg>`;
 const ICON_SEND = `<svg width="32" height="32" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 16h20M18 8l8 8-8 8"/></svg>`;
 const ICON_WIFI_OFF = `<svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 1l11 11"/><path d="M9.2 4.3A6 6 0 0112 6.5M1 6.5a6 6 0 013.3-2.6M6.5 10a1 1 0 010 2 1 1 0 010-2z"/><path d="M3.8 7.7A3.5 3.5 0 019 7"/></svg>`;
+const LOGO_SVG = `<svg width="20" height="20" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" aria-label="Hello API"><defs><linearGradient id="hapi-logo-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#3b82f6"/><stop offset="100%" stop-color="#6366f1"/></linearGradient></defs><rect width="20" height="20" rx="4.5" fill="url(#hapi-logo-g)"/><polyline points="5.5,5.5 14.5,10 5.5,14.5" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
 import './sidebar-nav.js';
 import './request-editor.js';
@@ -67,11 +68,25 @@ template.innerHTML = `
       transition: background 0.15s;
     }
     .menu-btn:hover { background: var(--color-surface-3); }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      flex: 1;
+      overflow: hidden;
+    }
+    .brand-logo {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      border-radius: 4px;
+      overflow: hidden;
+    }
     .topbar-title {
       font-size: 13px;
       font-weight: 600;
       color: var(--color-text-primary);
-      flex: 1;
+      white-space: nowrap;
     }
     .env-badge {
       display: flex;
@@ -213,7 +228,10 @@ template.innerHTML = `
     <div class="main" id="main">
       <div class="topbar">
         <div class="menu-btn" id="menu-btn" title="菜单">${ICON_MENU}</div>
-        <span class="topbar-title" id="topbar-title">Hello API</span>
+        <div class="brand">
+          <div class="brand-logo">${LOGO_SVG}</div>
+          <span class="topbar-title" id="topbar-title">Hello API</span>
+        </div>
         <div class="net-badge" id="net-badge">
           <div class="net-dot"></div>
           <span>已离线</span>

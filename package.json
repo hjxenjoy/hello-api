@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "format": "prettier --write \"**/*.{js,html,css,json,md}\" --ignore-path .gitignore",
-    "format:check": "prettier --check \"**/*.{js,html,css,json,md}\" --ignore-path .gitignore"
+    "format:check": "prettier --check \"**/*.{js,html,css,json,md}\" --ignore-path .gitignore",
+    "gen-icons": "node scripts/gen-icons.js"
   },
   "devDependencies": {
     "prettier": "^3.5.3"

@@ -30,6 +30,10 @@ const STATIC_ASSETS = [
   '/src/core/storage-stats.js',
   '/src/core/dialog.js',
   '/manifest.json',
+  '/assets/favicon.svg',
+  '/assets/favicon.png',
+  '/assets/icons/icon-192.png',
+  '/assets/icons/icon-512.png',
 ];
 
 self.addEventListener('install', (event) => {
