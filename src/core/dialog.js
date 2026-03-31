@@ -139,6 +139,12 @@ function ensureStyles() {
       font-weight: 500;
       color: var(--color-text-secondary);
     }
+    textarea.app-dialog__input {
+      resize: vertical;
+      min-height: 60px;
+      line-height: 1.5;
+      font-family: var(--font-sans);
+    }
   `;
   document.head.appendChild(style);
 }
@@ -275,15 +281,11 @@ export function showForm(title, fields, { confirmLabel = '保存' } = {}) {
               (f) => `
             <div class="app-dialog__field">
               <label class="app-dialog__label" for="app-field-${esc(f.id)}">${esc(f.label)}</label>
-              <input
-                class="app-dialog__input"
-                id="app-field-${esc(f.id)}"
-                type="${esc(f.type || 'text')}"
-                placeholder="${esc(f.placeholder || '')}"
-                value="${esc(f.defaultValue || '')}"
-                autocomplete="off"
-                spellcheck="false"
-              />
+              ${
+                f.type === 'textarea'
+                  ? `<textarea class="app-dialog__input" id="app-field-${esc(f.id)}" placeholder="${esc(f.placeholder || '')}" rows="3" autocomplete="off" spellcheck="false">${esc(f.defaultValue || '')}</textarea>`
+                  : `<input class="app-dialog__input" id="app-field-${esc(f.id)}" type="${esc(f.type || 'text')}" placeholder="${esc(f.placeholder || '')}" value="${esc(f.defaultValue || '')}" autocomplete="off" spellcheck="false" />`
+              }
             </div>
           `
             )

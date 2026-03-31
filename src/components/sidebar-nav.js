@@ -5,17 +5,34 @@ const ICON_SLIDERS = `<svg width="14" height="14" viewBox="0 0 14 14" fill="none
 const ICON_FOLDER = `<svg width="32" height="32" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11a2 2 0 012-2h7l2.5 2.5H26a2 2 0 012 2v9a2 2 0 01-2 2H6a2 2 0 01-2-2V11z"/></svg>`;
 const ICON_SW = `<svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 1.5L2 3.5v3c0 2.8 2 4.5 4.5 5 2.5-.5 4.5-2.2 4.5-5v-3L6.5 1.5z"/><path d="M4.5 6.5l1.5 1.5 2.5-2.5"/></svg>`;
 const ICON_COPY = `<svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="6" height="6" rx="1"/><path d="M1.5 7.5V2a1 1 0 011-1h5.5"/></svg>`;
+// Node-type icons
+const ICON_PROJECT = `<svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1.5" y="4.5" width="11" height="8" rx="1.5"/><path d="M5 4.5V3a1 1 0 011-1h2a1 1 0 011 1v1.5"/><path d="M1.5 8.5h11"/></svg>`;
+const ICON_COLLECTION = `<svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 5.5a1 1 0 011-1h3l1.5 1.5H12a1 1 0 011 1v4.5a1 1 0 01-1 1H2.5a1 1 0 01-1-1V5.5z"/></svg>`;
+const ICON_REQUEST_FILE = `<svg width="12" height="12" viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="1.5" width="9" height="10" rx="1.5"/><path d="M4 4.5h5M4 6.5h3.5M4 8.5h2"/></svg>`;
+const ICON_PENCIL = `<svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.5 1.5l2 2-6 6H2.5V7.5l6-6z"/><path d="M7 3l2 2"/></svg>`;
+const ICON_ADD_REQ = `<svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 1.5H3a1.5 1.5 0 00-1.5 1.5v8A1.5 1.5 0 003 12.5h8a1.5 1.5 0 001.5-1.5V6.5"/><path d="M10.5 1.5v4M8.5 3.5h4"/></svg>`;
 
 import {
   listProjects,
   createProject,
   deleteProject,
+  updateProject,
   createCollection,
   deleteCollection,
+  updateCollection,
   listCollections,
 } from '../db/projects.js';
-import { listRequests, createRequest, deleteRequest, duplicateRequest } from '../db/requests.js';
-import { showPrompt, showConfirm } from '../core/dialog.js';
+import {
+  listRequests,
+  createRequest,
+  deleteRequest,
+  duplicateRequest,
+  updateRequest,
+} from '../db/requests.js';
+import { showPrompt, showConfirm, showForm } from '../core/dialog.js';
+
+const LS_EXPANDED = 'hapi-sidebar-expanded';
+const LS_EXPANDED_COLL = 'hapi-sidebar-expanded-coll';
 
 const template = document.createElement('template');
 template.innerHTML = `
@@ -68,7 +85,7 @@ template.innerHTML = `
     .project-row {
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 5px;
       padding: 5px 8px 5px 10px;
       cursor: pointer;
       border-radius: 4px;
@@ -90,10 +107,18 @@ template.innerHTML = `
       flex-shrink: 0;
     }
     .chevron.open { transform: rotate(90deg); }
-    .project-icon {
-      font-size: 13px;
+    .node-icon {
+      width: 14px;
+      height: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       flex-shrink: 0;
+      opacity: 0.75;
     }
+    .project-row .node-icon { color: var(--color-accent); }
+    .collection-row .node-icon { color: var(--color-text-secondary); }
+    .request-row .node-icon { color: var(--color-text-tertiary); }
     .project-name {
       flex: 1;
       font-size: 13px;
@@ -130,7 +155,7 @@ template.innerHTML = `
     .collection-row {
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 5px;
       padding: 4px 8px 4px 8px;
       cursor: pointer;
       border-radius: 4px;
@@ -152,7 +177,7 @@ template.innerHTML = `
     .request-row {
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 5px;
       padding: 4px 8px;
       cursor: pointer;
       border-radius: 4px;
@@ -166,7 +191,7 @@ template.innerHTML = `
       font-size: 10px;
       font-weight: 700;
       font-family: var(--font-mono);
-      min-width: 40px;
+      min-width: 38px;
       text-align: center;
       flex-shrink: 0;
     }
@@ -238,6 +263,7 @@ template.innerHTML = `
   </style>
   <div class="header">
     <span class="header-title">项目</span>
+    <div class="icon-btn" id="new-request-btn" title="快速新建请求">${ICON_ADD_REQ}</div>
     <div class="icon-btn" id="new-project-btn" title="新建项目">+</div>
     <div class="icon-btn" id="env-btn" title="环境变量">${ICON_SLIDERS}</div>
   </div>
@@ -245,7 +271,7 @@ template.innerHTML = `
     <div class="empty-projects" id="empty-state">
       <div class="empty-icon">${ICON_FOLDER}</div>
       <div>暂无项目</div>
-      <div>点击 + 新建第一个项目</div>
+      <div>点击 + 新建项目，或直接新建请求</div>
     </div>
   </div>
   <div class="footer">
@@ -278,15 +304,35 @@ class SidebarNav extends HTMLElement {
     if (!this.shadowRoot) {
       this.attachShadow({ mode: 'open' });
       this.shadowRoot.appendChild(template.content.cloneNode(true));
+      this.#loadExpandState();
       this.#bindTopActions();
     }
     this.refresh();
+  }
+
+  #loadExpandState() {
+    try {
+      const p = localStorage.getItem(LS_EXPANDED);
+      const c = localStorage.getItem(LS_EXPANDED_COLL);
+      if (p) this.#expanded = new Set(JSON.parse(p));
+      if (c) this.#expandedCollections = new Set(JSON.parse(c));
+    } catch {
+      // ignore corrupt localStorage data
+    }
+  }
+
+  #persistExpanded() {
+    localStorage.setItem(LS_EXPANDED, JSON.stringify([...this.#expanded]));
+    localStorage.setItem(LS_EXPANDED_COLL, JSON.stringify([...this.#expandedCollections]));
   }
 
   #bindTopActions() {
     this.shadowRoot
       .getElementById('new-project-btn')
       .addEventListener('click', () => this.#newProject());
+    this.shadowRoot
+      .getElementById('new-request-btn')
+      .addEventListener('click', () => this.#quickAddRequest());
     this.shadowRoot.getElementById('env-btn').addEventListener('click', () => {
       this.dispatchEvent(new CustomEvent('open-env-manager', { bubbles: true, composed: true }));
     });
@@ -309,7 +355,6 @@ class SidebarNav extends HTMLElement {
     );
     if (!ok) return;
     await Promise.all(regs.map((r) => r.unregister()));
-    // Clear all caches
     const keys = await caches.keys();
     await Promise.all(keys.map((k) => caches.delete(k)));
     location.reload();
@@ -342,8 +387,10 @@ class SidebarNav extends HTMLElement {
       row.className = 'project-row';
       row.innerHTML = `
         <div class="chevron${isOpen ? ' open' : ''}">${ICON_CHEVRON}</div>
+        <div class="node-icon">${ICON_PROJECT}</div>
         <div class="project-name">${this.#esc(project.name)}</div>
         <div class="row-actions">
+          <div class="action-btn" data-action="rename" title="编辑">${ICON_PENCIL}</div>
           <div class="action-btn" data-action="add-collection" title="新建集合">+</div>
           <div class="action-btn del" data-action="delete" title="删除项目">×</div>
         </div>
@@ -351,6 +398,11 @@ class SidebarNav extends HTMLElement {
 
       row.addEventListener('click', async (e) => {
         const action = e.target.closest('[data-action]')?.dataset.action;
+        if (action === 'rename') {
+          e.stopPropagation();
+          await this.#renameProject(project);
+          return;
+        }
         if (action === 'add-collection') {
           await this.#newCollection(project.id);
           return;
@@ -362,6 +414,7 @@ class SidebarNav extends HTMLElement {
         this.#expanded.has(project.id)
           ? this.#expanded.delete(project.id)
           : this.#expanded.add(project.id);
+        this.#persistExpanded();
         this.#renderTree();
 
         this.dispatchEvent(
@@ -386,8 +439,10 @@ class SidebarNav extends HTMLElement {
           colRow.className = 'collection-row';
           colRow.innerHTML = `
             <div class="chevron${colOpen ? ' open' : ''}">${ICON_CHEVRON}</div>
+            <div class="node-icon">${ICON_COLLECTION}</div>
             <div class="collection-name">${this.#esc(col.name)}</div>
             <div class="row-actions">
+              <div class="action-btn" data-action="rename" title="编辑">${ICON_PENCIL}</div>
               <div class="action-btn" data-action="add-request" title="新建请求">+</div>
               <div class="action-btn del" data-action="delete" title="删除集合">×</div>
             </div>
@@ -395,8 +450,13 @@ class SidebarNav extends HTMLElement {
 
           colRow.addEventListener('click', async (e) => {
             const action = e.target.closest('[data-action]')?.dataset.action;
+            if (action === 'rename') {
+              e.stopPropagation();
+              await this.#renameCollection(col);
+              return;
+            }
             if (action === 'add-request') {
-              await this.#newRequest(col.id);
+              await this.#newRequest(col.id, project.id);
               return;
             }
             if (action === 'delete') {
@@ -406,6 +466,7 @@ class SidebarNav extends HTMLElement {
             this.#expandedCollections.has(col.id)
               ? this.#expandedCollections.delete(col.id)
               : this.#expandedCollections.add(col.id);
+            this.#persistExpanded();
             this.#renderTree();
           });
 
@@ -421,15 +482,22 @@ class SidebarNav extends HTMLElement {
               reqRow.className = `request-row${req.id === this.#activeRequestId ? ' active' : ''}`;
               const color = METHOD_COLORS[req.method] ?? '#64748b';
               reqRow.innerHTML = `
+                <div class="node-icon">${ICON_REQUEST_FILE}</div>
                 <span class="method-badge" style="color:${color}">${this.#esc(req.method)}</span>
                 <span class="request-name">${this.#esc(req.name)}</span>
                 <div class="row-actions">
+                  <div class="action-btn" data-action="rename" title="重命名">${ICON_PENCIL}</div>
                   <div class="action-btn" data-action="duplicate" title="复制请求">${ICON_COPY}</div>
                   <div class="action-btn del" data-action="delete" title="删除请求">×</div>
                 </div>
               `;
               reqRow.addEventListener('click', async (e) => {
                 const action = e.target.closest('[data-action]')?.dataset.action;
+                if (action === 'rename') {
+                  e.stopPropagation();
+                  await this.#renameRequest(req);
+                  return;
+                }
                 if (action === 'duplicate') {
                   await this.#duplicateReq(req.id);
                   return;
@@ -461,10 +529,35 @@ class SidebarNav extends HTMLElement {
   }
 
   async #newProject() {
-    const name = await showPrompt('新建项目', { placeholder: '项目名称' });
-    if (!name) return;
-    const project = await createProject({ name });
+    const result = await showForm('新建项目', [
+      { id: 'name', label: '名称', placeholder: '项目名称' },
+      { id: 'description', label: '备注', type: 'textarea', placeholder: '可选备注（可留空）' },
+    ]);
+    if (!result || !result.name.trim()) return;
+    const project = await createProject({
+      name: result.name.trim(),
+      description: result.description,
+    });
     this.#expanded.add(project.id);
+    this.#persistExpanded();
+    await this.refresh();
+  }
+
+  async #renameProject(project) {
+    const result = await showForm('编辑项目', [
+      { id: 'name', label: '名称', defaultValue: project.name, placeholder: '项目名称' },
+      {
+        id: 'description',
+        label: '备注',
+        type: 'textarea',
+        defaultValue: project.description ?? '',
+        placeholder: '可选备注（可留空）',
+      },
+    ]);
+    if (!result) return;
+    const name = result.name.trim();
+    if (!name) return;
+    await updateProject(project.id, { name, description: result.description });
     await this.refresh();
   }
 
@@ -477,15 +570,42 @@ class SidebarNav extends HTMLElement {
     if (!ok) return;
     await deleteProject(id);
     this.#expanded.delete(id);
+    this.#persistExpanded();
     await this.refresh();
   }
 
   async #newCollection(projectId) {
-    const name = await showPrompt('新建集合', { placeholder: '集合名称' });
-    if (!name) return;
-    const col = await createCollection({ projectId, name });
+    const result = await showForm('新建集合', [
+      { id: 'name', label: '名称', placeholder: '集合名称' },
+      { id: 'description', label: '备注', type: 'textarea', placeholder: '可选备注（可留空）' },
+    ]);
+    if (!result || !result.name.trim()) return;
+    const col = await createCollection({
+      projectId,
+      name: result.name.trim(),
+      description: result.description,
+    });
     this.#expanded.add(projectId);
     this.#expandedCollections.add(col.id);
+    this.#persistExpanded();
+    await this.refresh();
+  }
+
+  async #renameCollection(col) {
+    const result = await showForm('编辑集合', [
+      { id: 'name', label: '名称', defaultValue: col.name, placeholder: '集合名称' },
+      {
+        id: 'description',
+        label: '备注',
+        type: 'textarea',
+        defaultValue: col.description ?? '',
+        placeholder: '可选备注（可留空）',
+      },
+    ]);
+    if (!result) return;
+    const name = result.name.trim();
+    if (!name) return;
+    await updateCollection(col.id, { name, description: result.description });
     await this.refresh();
   }
 
@@ -498,20 +618,53 @@ class SidebarNav extends HTMLElement {
     if (!ok) return;
     await deleteCollection(id);
     this.#expandedCollections.delete(id);
+    this.#persistExpanded();
     await this.refresh();
   }
 
-  async #newRequest(collectionId) {
+  async #quickAddRequest() {
+    // Ensure at least a default project + collection exist, then create a request
+    const projects = await listProjects();
+    let project;
+    if (projects.length === 0) {
+      project = await createProject({ name: '默认', description: '' });
+    } else {
+      project = projects[0];
+    }
+    const collections = await listCollections(project.id);
+    let col;
+    if (collections.length === 0) {
+      col = await createCollection({ projectId: project.id, name: '默认', description: '' });
+    } else {
+      col = collections[0];
+    }
+    this.#expanded.add(project.id);
+    this.#expandedCollections.add(col.id);
+    this.#persistExpanded();
+    await this.#newRequest(col.id, project.id);
+  }
+
+  async #newRequest(collectionId, projectId = null) {
     const req = await createRequest({ collectionId, name: '新请求' });
     this.#activeRequestId = req.id;
     await this.refresh();
     this.dispatchEvent(
       new CustomEvent('request-selected', {
-        detail: { request: req },
+        detail: { request: req, projectId },
         bubbles: true,
         composed: true,
       })
     );
+  }
+
+  async #renameRequest(req) {
+    const name = await showPrompt('重命名请求', {
+      defaultValue: req.name,
+      placeholder: '请求名称',
+    });
+    if (!name) return;
+    await updateRequest(req.id, { name, nameIsAuto: false });
+    await this.refresh();
   }
 
   async #duplicateReq(id) {

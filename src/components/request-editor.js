@@ -451,15 +451,20 @@ class RequestEditor extends HTMLElement {
       }
     });
 
-    // URL auto-save
-    this.shadowRoot
-      .getElementById('url-input')
-      .addEventListener('input', () => this.#scheduleSave());
+    // URL auto-save; if name is still auto-derived, keep it in sync with URL
+    this.shadowRoot.getElementById('url-input').addEventListener('input', () => {
+      if (this.#request?.nameIsAuto) {
+        const url = this.shadowRoot.getElementById('url-input').value.trim();
+        this.shadowRoot.getElementById('name-input').value = url || '新请求';
+      }
+      this.#scheduleSave();
+    });
 
-    // Name save
-    this.shadowRoot
-      .getElementById('name-input')
-      .addEventListener('input', () => this.#scheduleSave());
+    // Name save; manual edit locks auto-name
+    this.shadowRoot.getElementById('name-input').addEventListener('input', () => {
+      if (this.#request) this.#request.nameIsAuto = false;
+      this.#scheduleSave();
+    });
 
     // Add param/header
     this.shadowRoot.getElementById('add-param-btn').addEventListener('click', () => {
@@ -846,10 +851,20 @@ class RequestEditor extends HTMLElement {
 
   async #save() {
     if (!this.#request?.id) return;
+    const prevName = this.#request.name;
     const data = this.#buildCurrentRequest();
     try {
       await updateRequest(this.#request.id, data);
       this.#request = data;
+      if (data.name !== prevName) {
+        this.dispatchEvent(
+          new CustomEvent('request-name-changed', {
+            detail: { id: data.id, name: data.name },
+            bubbles: true,
+            composed: true,
+          })
+        );
+      }
     } catch {
       // ignore save errors silently
     }

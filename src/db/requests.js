@@ -25,6 +25,7 @@ export async function createRequest(data) {
     params: data.params ?? [],
     body: data.body ?? { type: 'none', content: '' },
     description: data.description ?? '',
+    nameIsAuto: data.nameIsAuto ?? true,
     order: data.order ?? 0,
     createdAt: now(),
     updatedAt: now(),
@@ -85,6 +86,7 @@ export async function duplicateRequest(id) {
     ...original,
     id: crypto.randomUUID(),
     name: `${original.name} (Copy)`,
+    nameIsAuto: false,
     createdAt: now(),
     updatedAt: now(),
   };

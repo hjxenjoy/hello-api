@@ -301,6 +301,9 @@ class AppShell extends HTMLElement {
     nav.addEventListener('request-cleared', () => this.#showEmptyWorkspace());
     nav.addEventListener('open-env-manager', () => this.#toggleEnvOverlay());
 
+    // Refresh sidebar when a request name changes (e.g. auto-derived from URL)
+    this.shadowRoot.addEventListener('request-name-changed', () => nav.refresh());
+
     // Env manager events
     const envMgr = this.shadowRoot.getElementById('env-manager');
     envMgr.addEventListener('env-manager-close', () => this.#closeEnvOverlay());
