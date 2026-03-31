@@ -1,5 +1,7 @@
 // <request-editor> Web Component - request builder (Method, URL, Headers, Body)
 
+const ICON_CROSS = `<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M2 2l6 6M8 2l-6 6"/></svg>`;
+
 import { sendRequest } from '../core/http-client.js';
 import { interpolateRequest, envToVariables } from '../core/interpolation.js';
 import { updateRequest, saveRequestResponse } from '../db/requests.js';
@@ -171,8 +173,6 @@ template.innerHTML = `
       color: var(--color-text-tertiary);
       cursor: pointer;
       border-radius: 3px;
-      font-size: 14px;
-      line-height: 1;
     }
     .kv-del:hover { color: var(--color-error); background: var(--color-error-muted); }
     .add-row-btn {
@@ -740,7 +740,7 @@ class RequestEditor extends HTMLElement {
         <input type="checkbox" class="kv-check" ${item.enabled !== false ? 'checked' : ''} />
         <input class="kv-input" placeholder="字段名" value="${this.#esc(item.key)}" />
         <input class="kv-input" placeholder="值" value="${this.#esc(item.value ?? '')}" />
-        <div class="kv-del" title="删除">×</div>
+        <div class="kv-del" title="删除">${ICON_CROSS}</div>
       `;
       row.querySelector('.kv-check').addEventListener('change', (e) => {
         pairs[i].enabled = e.target.checked;
@@ -786,7 +786,7 @@ class RequestEditor extends HTMLElement {
         <input type="checkbox" class="kv-check" ${item.enabled !== false ? 'checked' : ''} />
         <input class="kv-input" placeholder="名称" value="${this.#esc(item.key)}" />
         <input class="kv-input" placeholder="值" value="${this.#esc(item.value ?? '')}" />
-        <div class="kv-del" title="删除">×</div>
+        <div class="kv-del" title="删除">${ICON_CROSS}</div>
       `;
       row.querySelector('.kv-check').addEventListener('change', (e) => {
         items[i].enabled = e.target.checked;
