@@ -7,7 +7,8 @@
   "scripts": {
     "format": "prettier --write \"**/*.{js,html,css,json,md}\" --ignore-path .gitignore",
     "format:check": "prettier --check \"**/*.{js,html,css,json,md}\" --ignore-path .gitignore",
-    "gen-icons": "node scripts/gen-icons.js"
+    "gen-icons": "node scripts/gen-icons.js",
+    "build": "mkdir -p dist && cp -r index.html manifest.json sw.js src assets dist/"
   },
   "devDependencies": {
     "prettier": "^3.5.3"
