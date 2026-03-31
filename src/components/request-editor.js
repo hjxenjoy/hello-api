@@ -287,6 +287,29 @@ template.innerHTML = `
       font-size: 12px;
       line-height: 1.6;
     }
+    .cm-loading {
+      height: 100%;
+      min-height: 120px;
+      background: var(--color-input-bg);
+      position: relative;
+      overflow: hidden;
+    }
+    .cm-loading::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        90deg,
+        transparent 0%,
+        var(--color-surface-3) 50%,
+        transparent 100%
+      );
+      animation: cm-shimmer 1.4s ease-in-out infinite;
+    }
+    @keyframes cm-shimmer {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(100%); }
+    }
     .body-textarea {
       flex: 1;
       border: 1px solid var(--color-input-border);
@@ -579,15 +602,56 @@ class RequestEditor extends HTMLElement {
   }
 
   async #createJsonEditor(container, initialValue) {
+    const loadingEl = document.createElement('div');
+    loadingEl.className = 'cm-loading';
+    container.appendChild(loadingEl);
     try {
-      const [{ basicSetup, EditorView }, { json }, { oneDark }] = await Promise.all([
-        import('https://esm.sh/codemirror@6'),
-        import('https://esm.sh/@codemirror/lang-json@6'),
-        import('https://esm.sh/@codemirror/theme-one-dark@6'),
+      const [viewMod, cmdsMod, { json }, { oneDark }, langMod, acMod] = await Promise.all([
+        import('@codemirror/view'),
+        import('@codemirror/commands'),
+        import('@codemirror/lang-json'),
+        import('@codemirror/theme-one-dark'),
+        import('@codemirror/language'),
+        import('@codemirror/autocomplete'),
       ]);
+      // esm.sh may wrap exports in .default on some builds
+      const {
+        EditorView,
+        keymap,
+        lineNumbers,
+        highlightActiveLine,
+        drawSelection,
+        rectangularSelection,
+      } = viewMod.default ?? viewMod;
+      const { defaultKeymap, historyKeymap, history, indentWithTab } = cmdsMod.default ?? cmdsMod;
+      const { syntaxHighlighting, defaultHighlightStyle, bracketMatching, indentOnInput } =
+        langMod.default ?? langMod;
+      const { autocompletion, closeBrackets, closeBracketsKeymap, completionKeymap } =
+        acMod.default ?? acMod;
+
+      const basicSetup = [
+        lineNumbers(),
+        highlightActiveLine(),
+        drawSelection(),
+        history(),
+        indentOnInput(),
+        syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+        bracketMatching(),
+        closeBrackets(),
+        autocompletion(),
+        rectangularSelection(),
+        keymap.of([
+          ...closeBracketsKeymap,
+          ...defaultKeymap,
+          ...historyKeymap,
+          ...completionKeymap,
+          indentWithTab,
+        ]),
+      ];
 
       // Guard: body type may have changed while loading
       if (this.#request?.body?.type !== 'json') return;
+      loadingEl.remove();
 
       const isDark =
         document.documentElement.dataset.theme === 'dark' ||
@@ -618,8 +682,13 @@ class RequestEditor extends HTMLElement {
         doc: initialValue,
         extensions,
         parent: container,
+        // Must pass the shadow root so CodeMirror injects its styles here
+        // instead of document.head (which doesn't apply inside Shadow DOM)
+        root: this.shadowRoot,
       });
-    } catch {
+    } catch (err) {
+      console.error('[CodeMirror] init failed:', err);
+      loadingEl.remove();
       // Fallback to plain textarea when CDN unavailable
       if (this.#request?.body?.type !== 'json') return;
       const area = this.shadowRoot.getElementById('body-area');

@@ -21,6 +21,25 @@
       })();
     </script>
 
+    <script type="importmap">
+      {
+        "imports": {
+          "@codemirror/state": "https://esm.sh/@codemirror/state@6",
+          "@codemirror/view": "https://esm.sh/@codemirror/view@6?external=@codemirror/state",
+          "@codemirror/language": "https://esm.sh/@codemirror/language@6?external=@codemirror/state,@codemirror/view,@lezer/common,@lezer/highlight,@lezer/lr",
+          "@codemirror/commands": "https://esm.sh/@codemirror/commands@6?external=@codemirror/state,@codemirror/view,@codemirror/language",
+          "@codemirror/search": "https://esm.sh/@codemirror/search@6?external=@codemirror/state,@codemirror/view,@codemirror/language",
+          "@codemirror/autocomplete": "https://esm.sh/@codemirror/autocomplete@6?external=@codemirror/state,@codemirror/view,@codemirror/language",
+          "@codemirror/lint": "https://esm.sh/@codemirror/lint@6?external=@codemirror/state,@codemirror/view",
+          "@codemirror/lang-json": "https://esm.sh/@codemirror/lang-json@6?external=@codemirror/state,@codemirror/language,@lezer/common,@lezer/highlight,@lezer/lr",
+          "@codemirror/theme-one-dark": "https://esm.sh/@codemirror/theme-one-dark@6?external=@codemirror/state,@codemirror/view",
+          "@lezer/common": "https://esm.sh/@lezer/common",
+          "@lezer/highlight": "https://esm.sh/@lezer/highlight?external=@lezer/common",
+          "@lezer/lr": "https://esm.sh/@lezer/lr?external=@lezer/common"
+        }
+      }
+    </script>
+
     <title>Hello API</title>
   </head>
   <body>
