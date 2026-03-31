@@ -218,6 +218,33 @@ template.innerHTML = `
       text-align: center;
     }
     .empty-icon { font-size: 28px; opacity: 0.4; }
+    .search-bar {
+      padding: 6px 8px;
+      border-bottom: 1px solid var(--color-border);
+      flex-shrink: 0;
+    }
+    .search-input {
+      width: 100%;
+      background: var(--color-input-bg);
+      border: 1px solid var(--color-border);
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-size: 12px;
+      color: var(--color-text-primary);
+      outline: none;
+      box-sizing: border-box;
+    }
+    .search-input:focus { border-color: var(--color-input-border-focus); }
+    .search-input::placeholder { color: var(--color-input-placeholder); }
+    .search-match mark {
+      background: var(--color-accent-muted);
+      color: var(--color-accent);
+      border-radius: 2px;
+      font-style: normal;
+    }
+    .drag-over-top { border-top: 2px solid var(--color-accent) !important; }
+    .drag-over-bottom { border-bottom: 2px solid var(--color-accent) !important; }
+    .dragging { opacity: 0.4; }
     .footer {
       border-top: 1px solid var(--color-border);
       flex-shrink: 0;
@@ -273,6 +300,9 @@ template.innerHTML = `
     <div class="icon-btn" id="env-btn" title="环境变量">${ICON_SLIDERS}</div>
   </div>
   <input type="file" id="import-file-input" accept=".json" style="display:none" />
+  <div class="search-bar">
+    <input class="search-input" id="search-input" placeholder="搜索请求…" />
+  </div>
   <div class="tree" id="tree">
     <div class="empty-projects" id="empty-state">
       <div class="empty-icon">${ICON_FOLDER}</div>
@@ -305,6 +335,9 @@ class SidebarNav extends HTMLElement {
   #expanded = new Set();
   #expandedCollections = new Set();
   #activeRequestId = null;
+  #searchQuery = '';
+  #dragSrc = null; // { type: 'request'|'collection', id, parentId }
+  #dropTarget = null; // { id, position: 'before'|'after' }
 
   connectedCallback() {
     if (!this.shadowRoot) {
@@ -354,6 +387,11 @@ class SidebarNav extends HTMLElement {
       e.target.value = '';
     });
     this.shadowRoot.getElementById('sw-btn').addEventListener('click', () => this.#unregisterSW());
+
+    this.shadowRoot.getElementById('search-input').addEventListener('input', (e) => {
+      this.#searchQuery = e.target.value.trim().toLowerCase();
+      this.#renderTree();
+    });
   }
 
   async #unregisterSW() {
@@ -393,26 +431,44 @@ class SidebarNav extends HTMLElement {
     }
 
     tree.innerHTML = '';
+    const q = this.#searchQuery;
 
     for (const project of this.#projects) {
+      const collections = await listCollections(project.id);
+
+      // Search: build filtered collections + requests
+      let filteredCols = null;
+      if (q) {
+        filteredCols = [];
+        for (const col of collections) {
+          const reqs = await listRequests(col.id);
+          const colMatches = col.name.toLowerCase().includes(q);
+          const matchingReqs = reqs.filter(
+            (r) => r.name.toLowerCase().includes(q) || r.url.toLowerCase().includes(q)
+          );
+          if (colMatches || matchingReqs.length > 0) {
+            filteredCols.push({ col, requests: colMatches ? reqs : matchingReqs });
+          }
+        }
+        if (!project.name.toLowerCase().includes(q) && filteredCols.length === 0) continue;
+      }
+
+      const isOpen = q ? true : this.#expanded.has(project.id);
       const section = document.createElement('div');
       section.className = 'project-section';
-
-      const isOpen = this.#expanded.has(project.id);
 
       const row = document.createElement('div');
       row.className = 'project-row';
       row.innerHTML = `
         <div class="chevron${isOpen ? ' open' : ''}">${ICON_CHEVRON}</div>
         <div class="node-icon">${ICON_PROJECT}</div>
-        <div class="project-name">${this.#esc(project.name)}</div>
+        <div class="project-name">${this.#highlight(project.name, q)}</div>
         <div class="row-actions">
           <div class="action-btn" data-action="rename" title="编辑">${ICON_PENCIL}</div>
           <div class="action-btn" data-action="add-collection" title="新建集合">${ICON_PLUS}</div>
           <div class="action-btn del" data-action="delete" title="删除项目">${ICON_CROSS}</div>
         </div>
       `;
-
       row.addEventListener('click', async (e) => {
         const action = e.target.closest('[data-action]')?.dataset.action;
         if (action === 'rename') {
@@ -428,12 +484,12 @@ class SidebarNav extends HTMLElement {
           await this.#deleteProject(project.id);
           return;
         }
+        if (q) return;
         this.#expanded.has(project.id)
           ? this.#expanded.delete(project.id)
           : this.#expanded.add(project.id);
         this.#persistExpanded();
         this.#renderTree();
-
         this.dispatchEvent(
           new CustomEvent('project-selected', {
             detail: { project },
@@ -442,29 +498,38 @@ class SidebarNav extends HTMLElement {
           })
         );
       });
-
       section.appendChild(row);
 
       if (isOpen) {
-        const collections = await listCollections(project.id);
+        const colsToRender = filteredCols ? filteredCols.map((f) => f.col) : collections;
         const colContainer = document.createElement('div');
         colContainer.className = 'collections';
 
-        for (const col of collections) {
-          const colOpen = this.#expandedCollections.has(col.id);
+        for (let ci = 0; ci < colsToRender.length; ci++) {
+          const col = colsToRender[ci];
+          const filteredEntry = filteredCols ? filteredCols[ci] : null;
+          const colOpen = q ? true : this.#expandedCollections.has(col.id);
+
           const colRow = document.createElement('div');
           colRow.className = 'collection-row';
+          if (!q) {
+            colRow.draggable = true;
+            this.#bindDrag(
+              colRow,
+              { type: 'collection', id: col.id, parentId: project.id },
+              colsToRender
+            );
+          }
           colRow.innerHTML = `
             <div class="chevron${colOpen ? ' open' : ''}">${ICON_CHEVRON}</div>
             <div class="node-icon">${ICON_COLLECTION}</div>
-            <div class="collection-name">${this.#esc(col.name)}</div>
+            <div class="collection-name">${this.#highlight(col.name, q)}</div>
             <div class="row-actions">
               <div class="action-btn" data-action="rename" title="编辑">${ICON_PENCIL}</div>
               <div class="action-btn" data-action="add-request" title="新建请求">${ICON_PLUS}</div>
               <div class="action-btn del" data-action="delete" title="删除集合">${ICON_CROSS}</div>
             </div>
           `;
-
           colRow.addEventListener('click', async (e) => {
             const action = e.target.closest('[data-action]')?.dataset.action;
             if (action === 'rename') {
@@ -480,28 +545,32 @@ class SidebarNav extends HTMLElement {
               await this.#deleteCollection(col.id);
               return;
             }
+            if (q) return;
             this.#expandedCollections.has(col.id)
               ? this.#expandedCollections.delete(col.id)
               : this.#expandedCollections.add(col.id);
             this.#persistExpanded();
             this.#renderTree();
           });
-
           colContainer.appendChild(colRow);
 
           if (colOpen) {
-            const requests = await listRequests(col.id);
+            const requests = filteredEntry?.requests ?? (await listRequests(col.id));
             const reqContainer = document.createElement('div');
             reqContainer.className = 'requests';
 
             for (const req of requests) {
               const reqRow = document.createElement('div');
               reqRow.className = `request-row${req.id === this.#activeRequestId ? ' active' : ''}`;
+              if (!q) {
+                reqRow.draggable = true;
+                this.#bindDrag(reqRow, { type: 'request', id: req.id, parentId: col.id }, requests);
+              }
               const color = METHOD_COLORS[req.method] ?? '#64748b';
               reqRow.innerHTML = `
                 <div class="node-icon">${ICON_REQUEST_FILE}</div>
                 <span class="method-badge" style="color:${color}">${this.#esc(req.method)}</span>
-                <span class="request-name">${this.#esc(req.name)}</span>
+                <span class="request-name">${this.#highlight(req.name, q)}</span>
                 <div class="row-actions">
                   <div class="action-btn" data-action="rename" title="重命名">${ICON_PENCIL}</div>
                   <div class="action-btn" data-action="duplicate" title="复制请求">${ICON_COPY}</div>
@@ -543,6 +612,87 @@ class SidebarNav extends HTMLElement {
 
       tree.appendChild(section);
     }
+  }
+
+  #bindDrag(row, src, siblings) {
+    row.addEventListener('dragstart', (e) => {
+      this.#dragSrc = src;
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', src.id);
+      setTimeout(() => row.classList.add('dragging'), 0);
+    });
+    row.addEventListener('dragend', () => {
+      this.#clearDragClasses();
+      this.#dragSrc = null;
+      this.#dropTarget = null;
+    });
+    row.addEventListener('dragover', (e) => {
+      if (
+        !this.#dragSrc ||
+        this.#dragSrc.type !== src.type ||
+        this.#dragSrc.parentId !== src.parentId ||
+        this.#dragSrc.id === src.id
+      )
+        return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      this.#clearDragClasses();
+      const rect = row.getBoundingClientRect();
+      const isTop = e.clientY < rect.top + rect.height / 2;
+      row.classList.add(isTop ? 'drag-over-top' : 'drag-over-bottom');
+      this.#dropTarget = { id: src.id, position: isTop ? 'before' : 'after' };
+    });
+    row.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      if (
+        !this.#dragSrc ||
+        !this.#dropTarget ||
+        this.#dragSrc.type !== src.type ||
+        this.#dragSrc.parentId !== src.parentId ||
+        this.#dragSrc.id === this.#dropTarget.id
+      )
+        return;
+      const s = { ...this.#dragSrc };
+      const t = { ...this.#dropTarget };
+      this.#dragSrc = null;
+      this.#dropTarget = null;
+      await this.#doReorder(s.type, s.parentId, s.id, t);
+    });
+  }
+
+  async #doReorder(type, parentId, srcId, target) {
+    const items =
+      type === 'request' ? await listRequests(parentId) : await listCollections(parentId);
+    const fromIdx = items.findIndex((x) => x.id === srcId);
+    const toIdx = items.findIndex((x) => x.id === target.id);
+    if (fromIdx === -1 || toIdx === -1) return;
+
+    const [item] = items.splice(fromIdx, 1);
+    const adjustedTo = toIdx > fromIdx ? toIdx - 1 : toIdx;
+    const insertAt = target.position === 'before' ? adjustedTo : adjustedTo + 1;
+    items.splice(Math.max(0, Math.min(items.length, insertAt)), 0, item);
+
+    const updater = type === 'request' ? updateRequest : updateCollection;
+    await Promise.all(items.map((x, i) => updater(x.id, { order: i })));
+    await this.refresh();
+  }
+
+  #clearDragClasses() {
+    this.shadowRoot
+      .querySelectorAll('.drag-over-top, .drag-over-bottom, .dragging')
+      .forEach((el) => el.classList.remove('drag-over-top', 'drag-over-bottom', 'dragging'));
+  }
+
+  #highlight(text, q) {
+    const escaped = this.#esc(text);
+    if (!q) return escaped;
+    const idx = text.toLowerCase().indexOf(q);
+    if (idx === -1) return escaped;
+    return (
+      this.#esc(text.slice(0, idx)) +
+      `<mark>${this.#esc(text.slice(idx, idx + q.length))}</mark>` +
+      this.#esc(text.slice(idx + q.length))
+    );
   }
 
   async #newProject() {

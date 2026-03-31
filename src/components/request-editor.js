@@ -68,6 +68,22 @@ template.innerHTML = `
       min-width: 0;
     }
     .request-name-input::placeholder { color: var(--color-text-tertiary); }
+    .desc-bar {
+      padding: 0 12px 5px;
+      flex-shrink: 0;
+      display: none;
+    }
+    .desc-input {
+      width: 100%;
+      background: none;
+      border: none;
+      outline: none;
+      font-size: 12px;
+      color: var(--color-text-secondary);
+      font-family: var(--font-sans);
+      box-sizing: border-box;
+    }
+    .desc-input::placeholder { color: var(--color-text-tertiary); font-style: italic; }
     select.method {
       appearance: none;
       border: 1px solid var(--color-input-border);
@@ -435,6 +451,9 @@ template.innerHTML = `
   <div class="request-name" id="name-bar" style="display:none">
     <input class="request-name-input" id="name-input" placeholder="请求名称" />
   </div>
+  <div class="desc-bar" id="desc-bar">
+    <input class="desc-input" id="desc-input" placeholder="添加备注…" />
+  </div>
   <div class="url-bar">
     <select class="method" id="method-select"></select>
     <input class="url-input" id="url-input" placeholder="https://api.example.com/endpoint" />
@@ -579,6 +598,11 @@ class RequestEditor extends HTMLElement {
       this.#scheduleSave();
     });
 
+    // Description save
+    this.shadowRoot
+      .getElementById('desc-input')
+      .addEventListener('input', () => this.#scheduleSave());
+
     // Auth type change
     this.shadowRoot.getElementById('auth-type').addEventListener('change', (e) => {
       if (!this.#request) return;
@@ -628,6 +652,8 @@ class RequestEditor extends HTMLElement {
     const nameBar = this.shadowRoot.getElementById('name-bar');
     nameBar.style.display = 'flex';
     this.shadowRoot.getElementById('name-input').value = request.name ?? '';
+    this.shadowRoot.getElementById('desc-bar').style.display = 'block';
+    this.shadowRoot.getElementById('desc-input').value = request.description ?? '';
 
     const sel = this.shadowRoot.getElementById('method-select');
     sel.value = request.method ?? 'GET';
@@ -971,11 +997,14 @@ class RequestEditor extends HTMLElement {
       body.content = this.shadowRoot.getElementById('body-textarea')?.value ?? '';
     }
 
+    const description = this.shadowRoot.getElementById('desc-input')?.value ?? '';
+
     return {
       ...this.#request,
       name,
       method,
       url,
+      description,
       headers: this.#request?.headers ?? [],
       params: this.#request?.params ?? [],
       body,
