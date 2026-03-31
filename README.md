@@ -2,7 +2,7 @@
 
 一个安全、离线优先的 HTTP 接口测试与管理工具。无需注册、无需后端、所有数据存在本地浏览器。
 
-**在线访问** → [hello-api.pages.dev](https://hello-api.pages.dev)
+**在线访问** → [hello-api-cf7.pages.dev](https://hello-api-cf7.pages.dev)
 
 ---
 
