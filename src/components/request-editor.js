@@ -6,6 +6,7 @@ const ICON_CURL = `<svg width="13" height="13" viewBox="0 0 13 13" fill="none" s
 import { sendRequest } from '../core/http-client.js';
 import { interpolateRequest, envToVariables } from '../core/interpolation.js';
 import { updateRequest, saveRequestResponse } from '../db/requests.js';
+import { t, applyI18n } from '../core/i18n.js';
 
 const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];
 const RAW_CONTENT_TYPES = [
@@ -449,16 +450,16 @@ template.innerHTML = `
     select.auth-in-select:focus { border-color: var(--color-input-border-focus); }
   </style>
   <div class="request-name" id="name-bar" style="display:none">
-    <input class="request-name-input" id="name-input" placeholder="请求名称" />
+    <input class="request-name-input" id="name-input" data-i18n-placeholder="req.namePlaceholder" placeholder="请求名称" />
   </div>
   <div class="desc-bar" id="desc-bar">
-    <input class="desc-input" id="desc-input" placeholder="添加备注…" />
+    <input class="desc-input" id="desc-input" data-i18n-placeholder="req.descPlaceholder" placeholder="添加备注…" />
   </div>
   <div class="url-bar">
     <select class="method" id="method-select"></select>
     <input class="url-input" id="url-input" placeholder="https://api.example.com/endpoint" />
-    <button class="send-btn" id="send-btn">发送</button>
-    <button class="curl-btn" id="curl-btn" title="复制为 cURL">${ICON_CURL}</button>
+    <button class="send-btn" id="send-btn" data-i18n="req.send">发送</button>
+    <button class="curl-btn" id="curl-btn" data-i18n-title="req.copyAsCurl" title="复制为 cURL">${ICON_CURL}</button>
   </div>
   <div class="tabs" id="tabs">
     <div class="tab active" data-tab="params">Params</div>
@@ -468,15 +469,15 @@ template.innerHTML = `
   </div>
   <div class="panel active" id="panel-params">
     <div class="kv-list" id="params-list"></div>
-    <button class="add-row-btn" id="add-param-btn">+ 添加参数</button>
+    <button class="add-row-btn" id="add-param-btn" data-i18n="req.addParam">+ 添加参数</button>
   </div>
   <div class="panel" id="panel-headers">
     <div class="kv-list" id="headers-list"></div>
-    <button class="add-row-btn" id="add-header-btn">+ 添加 Header</button>
+    <button class="add-row-btn" id="add-header-btn" data-i18n="req.addHeader">+ 添加 Header</button>
   </div>
   <div class="panel" id="panel-body">
     <div class="body-type-bar" id="body-type-bar">
-      <button class="body-type-btn active" data-type="none">无</button>
+      <button class="body-type-btn active" data-type="none" data-i18n="req.bodyNone">无</button>
       <button class="body-type-btn" data-type="json">JSON</button>
       <button class="body-type-btn" data-type="form-urlencoded">Form</button>
       <button class="body-type-btn" data-type="raw">Raw</button>
@@ -485,9 +486,9 @@ template.innerHTML = `
   </div>
   <div class="panel" id="panel-auth">
     <div class="auth-type-row">
-      <span class="auth-type-label">认证类型</span>
+      <span class="auth-type-label" data-i18n="req.authType">认证类型</span>
       <select class="auth-type-select" id="auth-type">
-        <option value="none">无</option>
+        <option value="none" data-i18n="req.authNone">无</option>
         <option value="bearer">Bearer Token</option>
         <option value="basic">Basic Auth</option>
         <option value="apikey">API Key</option>
@@ -502,12 +503,39 @@ class RequestEditor extends HTMLElement {
   #environment = null;
   #saveTimer = null;
   #cmEditor = null;
+  #i18nHandler = null;
 
   connectedCallback() {
     if (!this.shadowRoot) {
       this.attachShadow({ mode: 'open' });
       this.shadowRoot.appendChild(template.content.cloneNode(true));
       this.#init();
+      this.#applyI18n();
+    }
+    this.#i18nHandler = () => this.#applyI18n();
+    window.addEventListener('locale-changed', this.#i18nHandler);
+  }
+
+  disconnectedCallback() {
+    window.removeEventListener('locale-changed', this.#i18nHandler);
+  }
+
+  #applyI18n() {
+    if (!this.shadowRoot) return;
+    applyI18n(this.shadowRoot);
+    // Re-render dynamic areas if currently visible
+    if (this.#request) {
+      if (this.shadowRoot.getElementById('panel-body')?.classList.contains('active')) {
+        if (!this.#cmEditor) this.#renderBodyArea();
+        else {
+          // CodeMirror is active — just update the format button text
+          const fmtBtn = this.shadowRoot.querySelector('.json-format-btn');
+          if (fmtBtn) fmtBtn.textContent = t('req.formatJson');
+        }
+      }
+      if (this.shadowRoot.getElementById('panel-auth')?.classList.contains('active')) {
+        this.#renderAuthPanel();
+      }
     }
   }
 
@@ -587,7 +615,7 @@ class RequestEditor extends HTMLElement {
     this.shadowRoot.getElementById('url-input').addEventListener('input', () => {
       if (this.#request?.nameIsAuto) {
         const url = this.shadowRoot.getElementById('url-input').value.trim();
-        this.shadowRoot.getElementById('name-input').value = url || '新请求';
+        this.shadowRoot.getElementById('name-input').value = url || t('req.namePlaceholder');
       }
       this.#scheduleSave();
     });
@@ -617,8 +645,8 @@ class RequestEditor extends HTMLElement {
       const cmd = this.#buildCurlCommand();
       await navigator.clipboard.writeText(cmd);
       const btn = this.shadowRoot.getElementById('curl-btn');
-      btn.title = '已复制！';
-      setTimeout(() => (btn.title = '复制为 cURL'), 2000);
+      btn.title = t('req.curlCopied');
+      setTimeout(() => (btn.title = t('req.copyAsCurl')), 2000);
     });
 
     // Add param/header
@@ -708,7 +736,7 @@ class RequestEditor extends HTMLElement {
     if (type === 'none') {
       const el = document.createElement('div');
       el.className = 'body-empty';
-      el.textContent = '该请求无 Body';
+      el.textContent = t('req.bodyNoneHint');
       area.appendChild(el);
       return;
     }
@@ -723,7 +751,7 @@ class RequestEditor extends HTMLElement {
       toolbar.className = 'json-toolbar';
       const fmtBtn = document.createElement('button');
       fmtBtn.className = 'json-format-btn';
-      fmtBtn.textContent = '格式化';
+      fmtBtn.textContent = t('req.formatJson');
       fmtBtn.addEventListener('click', () => this.#formatJson());
       toolbar.appendChild(fmtBtn);
       area.appendChild(toolbar);
@@ -867,7 +895,7 @@ class RequestEditor extends HTMLElement {
       const ta = document.createElement('textarea');
       ta.className = 'body-textarea';
       ta.id = 'body-textarea';
-      ta.placeholder = 'JSON 内容';
+      ta.placeholder = t('req.bodyJson');
       ta.value = this.#request.body.content ?? '';
       ta.addEventListener('input', () => this.#scheduleSave());
       container2.appendChild(ta);
@@ -902,9 +930,9 @@ class RequestEditor extends HTMLElement {
       row.className = 'kv-row';
       row.innerHTML = `
         <input type="checkbox" class="kv-check" ${item.enabled !== false ? 'checked' : ''} />
-        <input class="kv-input" placeholder="字段名" value="${this.#esc(item.key)}" />
-        <input class="kv-input" placeholder="值" value="${this.#esc(item.value ?? '')}" />
-        <div class="kv-del" title="删除">${ICON_CROSS}</div>
+        <input class="kv-input" placeholder="${this.#esc(t('req.authKey'))}" value="${this.#esc(item.key)}" />
+        <input class="kv-input" placeholder="${this.#esc(t('req.authValue'))}" value="${this.#esc(item.value ?? '')}" />
+        <div class="kv-del">${ICON_CROSS}</div>
       `;
       row.querySelector('.kv-check').addEventListener('change', (e) => {
         pairs[i].enabled = e.target.checked;
@@ -930,7 +958,7 @@ class RequestEditor extends HTMLElement {
 
     const addBtn = document.createElement('button');
     addBtn.className = 'add-row-btn';
-    addBtn.textContent = '+ 添加字段';
+    addBtn.textContent = t('req.addFormField');
     addBtn.addEventListener('click', () => {
       this.#request.body.pairs.push({ key: '', value: '', enabled: true });
       this.#renderFormPairs();
@@ -948,9 +976,9 @@ class RequestEditor extends HTMLElement {
       row.className = 'kv-row';
       row.innerHTML = `
         <input type="checkbox" class="kv-check" ${item.enabled !== false ? 'checked' : ''} />
-        <input class="kv-input" placeholder="名称" value="${this.#esc(item.key)}" />
-        <input class="kv-input" placeholder="值" value="${this.#esc(item.value ?? '')}" />
-        <div class="kv-del" title="删除">${ICON_CROSS}</div>
+        <input class="kv-input" placeholder="${this.#esc(t('res.headerName'))}" value="${this.#esc(item.key)}" />
+        <input class="kv-input" placeholder="${this.#esc(t('res.headerValue'))}" value="${this.#esc(item.value ?? '')}" />
+        <div class="kv-del">${ICON_CROSS}</div>
       `;
       row.querySelector('.kv-check').addEventListener('change', (e) => {
         items[i].enabled = e.target.checked;
@@ -1041,7 +1069,7 @@ class RequestEditor extends HTMLElement {
     if (!this.shadowRoot) return;
     const btn = this.shadowRoot.getElementById('send-btn');
     btn.disabled = true;
-    btn.textContent = '发送中…';
+    btn.textContent = t('req.sending');
 
     this.dispatchEvent(new CustomEvent('request-sending', { bubbles: true, composed: true }));
 
@@ -1053,7 +1081,7 @@ class RequestEditor extends HTMLElement {
     const response = await sendRequest(withAuth);
 
     btn.disabled = false;
-    btn.textContent = '发送';
+    btn.textContent = t('req.send');
 
     // Persist response to IndexedDB (strip blobUrl — it's a temporary object URL)
     if (this.#request?.id && !response.error) {
@@ -1087,7 +1115,7 @@ class RequestEditor extends HTMLElement {
     if (type === 'none') {
       const el = document.createElement('div');
       el.className = 'auth-empty';
-      el.textContent = '未配置认证';
+      el.textContent = t('req.authEmpty');
       fields.appendChild(el);
       return;
     }
@@ -1097,43 +1125,68 @@ class RequestEditor extends HTMLElement {
 
     if (type === 'bearer') {
       form.appendChild(
-        this.#authField('Token', this.#request.auth.token ?? '', 'Bearer token 值', (v) => {
-          this.#request.auth.token = v;
-        })
+        this.#authField(
+          t('req.authToken'),
+          this.#request.auth.token ?? '',
+          t('req.authTokenPlaceholder'),
+          (v) => {
+            this.#request.auth.token = v;
+          }
+        )
       );
     } else if (type === 'basic') {
       form.appendChild(
-        this.#authField('用户名', this.#request.auth.username ?? '', '用户名', (v) => {
-          this.#request.auth.username = v;
-        })
+        this.#authField(
+          t('req.authUsername'),
+          this.#request.auth.username ?? '',
+          t('req.authUsernamePlaceholder'),
+          (v) => {
+            this.#request.auth.username = v;
+          }
+        )
       );
       form.appendChild(
-        this.#authField('密码', this.#request.auth.password ?? '', '密码', (v) => {
-          this.#request.auth.password = v;
-        })
+        this.#authField(
+          t('req.authPassword'),
+          this.#request.auth.password ?? '',
+          t('req.authPasswordPlaceholder'),
+          (v) => {
+            this.#request.auth.password = v;
+          }
+        )
       );
     } else if (type === 'apikey') {
       form.appendChild(
-        this.#authField('Key', this.#request.auth.key ?? '', 'Header / 参数名', (v) => {
-          this.#request.auth.key = v;
-        })
+        this.#authField(
+          t('req.authKey'),
+          this.#request.auth.key ?? '',
+          t('req.authKeyPlaceholder'),
+          (v) => {
+            this.#request.auth.key = v;
+          }
+        )
       );
       form.appendChild(
-        this.#authField('Value', this.#request.auth.value ?? '', 'API Key 值', (v) => {
-          this.#request.auth.value = v;
-        })
+        this.#authField(
+          t('req.authValue'),
+          this.#request.auth.value ?? '',
+          t('req.authValuePlaceholder'),
+          (v) => {
+            this.#request.auth.value = v;
+          }
+        )
       );
 
       const inField = document.createElement('div');
       inField.className = 'auth-field';
       const inLabel = document.createElement('label');
       inLabel.className = 'auth-label';
-      inLabel.textContent = '添加到';
+      inLabel.textContent = t('req.authAddTo');
       const inSel = document.createElement('select');
       inSel.className = 'auth-in-select';
       for (const [val, txt] of [
-        ['header', 'Header'],
-        ['query', 'Query Params'],
+        ['header', t('req.authHeader')],
+        ['query', t('req.authQuery')],
       ]) {
         const opt = document.createElement('option');
         opt.value = val;

@@ -8,6 +8,7 @@ import {
   setActiveEnvironment,
 } from '../db/environments.js';
 import { showPrompt, showConfirm } from '../core/dialog.js';
+import { t, applyI18n } from '../core/i18n.js';
 
 const template = document.createElement('template');
 template.innerHTML = `
@@ -172,17 +173,17 @@ template.innerHTML = `
     }
   </style>
   <div class="header">
-    <span class="title">环境变量</span>
-    <div class="icon-btn" id="add-env-btn" title="新建环境">+</div>
-    <div class="icon-btn close-btn" id="close-btn" title="关闭">×</div>
+    <span class="title" data-i18n="env.title">环境变量</span>
+    <div class="icon-btn" id="add-env-btn" data-i18n-title="env.newEnvTitle" title="新建环境">+</div>
+    <div class="icon-btn close-btn" id="close-btn" data-i18n-title="env.closeTitle" title="关闭">×</div>
   </div>
   <div class="env-list" id="env-list"></div>
   <div class="vars-section" id="vars-section" style="display:none">
     <div class="vars-header" id="vars-header">变量</div>
     <div class="vars-list" id="vars-list"></div>
-    <button class="add-row-btn" id="add-var-btn">+ 添加变量</button>
+    <button class="add-row-btn" id="add-var-btn" data-i18n="env.addVar">+ 添加变量</button>
   </div>
-  <div class="empty" id="empty-state">暂无环境，点击 + 创建</div>
+  <div class="empty" id="empty-state" data-i18n="env.empty">暂无环境，点击 + 创建</div>
 `;
 
 class EnvManager extends HTMLElement {
@@ -190,13 +191,24 @@ class EnvManager extends HTMLElement {
   #envs = [];
   #selectedEnvId = null;
   #saveTimer = null;
+  #i18nHandler = null;
 
   connectedCallback() {
     if (!this.shadowRoot) {
       this.attachShadow({ mode: 'open' });
       this.shadowRoot.appendChild(template.content.cloneNode(true));
       this.#bindEvents();
+      applyI18n(this.shadowRoot);
     }
+    this.#i18nHandler = () => {
+      applyI18n(this.shadowRoot);
+      this.#renderVarList();
+    };
+    window.addEventListener('locale-changed', this.#i18nHandler);
+  }
+
+  disconnectedCallback() {
+    window.removeEventListener('locale-changed', this.#i18nHandler);
   }
 
   #bindEvents() {
@@ -238,7 +250,7 @@ class EnvManager extends HTMLElement {
       item.innerHTML = `
         <div class="env-dot"></div>
         <div class="env-name">${this.#esc(env.name)}</div>
-        <div class="env-del" title="删除">×</div>
+        <div class="env-del" title="${t('env.deleteEnvItem')}">×</div>
       `;
       item.addEventListener('click', async (e) => {
         if (e.target.closest('.env-del')) {
@@ -271,7 +283,7 @@ class EnvManager extends HTMLElement {
       return;
     }
 
-    varsHeader.textContent = `变量 — ${env.name}`;
+    varsHeader.textContent = `${t('env.varsHeaderPrefix')}${env.name}`;
     varsList.innerHTML = '';
 
     for (let i = 0; i < env.variables.length; i++) {
@@ -280,8 +292,8 @@ class EnvManager extends HTMLElement {
       row.className = 'kv-row';
       row.innerHTML = `
         <input type="checkbox" class="kv-check" ${v.enabled !== false ? 'checked' : ''} />
-        <input class="kv-input" placeholder="变量名" value="${this.#esc(v.key)}" />
-        <input class="kv-input" placeholder="值" value="${this.#esc(v.value ?? '')}" />
+        <input class="kv-input" placeholder="${this.#esc(t('env.varNamePlaceholder'))}" value="${this.#esc(v.key)}" />
+        <input class="kv-input" placeholder="${this.#esc(t('env.varValuePlaceholder'))}" value="${this.#esc(v.value ?? '')}" />
         <div class="kv-del">×</div>
       `;
       row.querySelector('.kv-check').addEventListener('change', (e) => {
@@ -307,7 +319,9 @@ class EnvManager extends HTMLElement {
 
   async #addEnv() {
     if (!this.#projectId) return;
-    const name = await showPrompt('新建环境', { placeholder: '环境名称，如：开发、生产' });
+    const name = await showPrompt(t('env.newEnvPrompt'), {
+      placeholder: t('env.newEnvPlaceholder'),
+    });
     if (!name) return;
     const env = await createEnvironment({ projectId: this.#projectId, name });
     this.#envs.push(env);
@@ -317,9 +331,9 @@ class EnvManager extends HTMLElement {
   }
 
   async #deleteEnv(id) {
-    const ok = await showConfirm('确认删除该环境及其所有变量？', {
-      title: '删除环境',
-      confirmLabel: '删除',
+    const ok = await showConfirm(t('env.deleteConfirm'), {
+      title: t('env.deleteTitle'),
+      confirmLabel: t('env.deleteBtn'),
       danger: true,
     });
     if (!ok) return;

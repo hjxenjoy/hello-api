@@ -1,5 +1,7 @@
 // Custom dialog helpers replacing native prompt() / confirm()
 
+import { t } from './i18n.js';
+
 const STYLE_ID = 'app-dialog-styles';
 
 function ensureStyles() {
@@ -167,10 +169,8 @@ function getEl() {
  * @param {{ placeholder?: string, defaultValue?: string, confirmLabel?: string }} [opts]
  * @returns {Promise<string|null>}
  */
-export function showPrompt(
-  title,
-  { placeholder = '', defaultValue = '', confirmLabel = '确认' } = {}
-) {
+export function showPrompt(title, { placeholder = '', defaultValue = '', confirmLabel } = {}) {
+  confirmLabel ??= t('dialog.confirm');
   return new Promise((resolve) => {
     const el = getEl();
 
@@ -189,7 +189,7 @@ export function showPrompt(
           spellcheck="false"
         />
         <div class="app-dialog__actions">
-          <button class="app-dialog__btn" id="app-dialog-cancel" type="button">取消</button>
+          <button class="app-dialog__btn" id="app-dialog-cancel" type="button">${esc(t('dialog.cancel'))}</button>
           <button class="app-dialog__btn app-dialog__btn--primary" id="app-dialog-confirm" type="submit">
             ${esc(confirmLabel)}
           </button>
@@ -224,7 +224,8 @@ export function showPrompt(
  * @param {{ confirmLabel?: string, danger?: boolean, title?: string }} [opts]
  * @returns {Promise<boolean>}
  */
-export function showConfirm(message, { confirmLabel = '确认', danger = false, title = '' } = {}) {
+export function showConfirm(message, { confirmLabel, danger = false, title = '' } = {}) {
+  confirmLabel ??= t('dialog.confirm');
   return new Promise((resolve) => {
     const el = getEl();
 
@@ -233,7 +234,7 @@ export function showConfirm(message, { confirmLabel = '确认', danger = false, 
         ${title ? `<div class="app-dialog__header"><span class="app-dialog__title">${esc(title)}</span></div>` : ''}
         <div class="app-dialog__desc">${esc(message)}</div>
         <div class="app-dialog__actions">
-          <button class="app-dialog__btn" id="app-dialog-cancel">取消</button>
+          <button class="app-dialog__btn" id="app-dialog-cancel">${esc(t('dialog.cancel'))}</button>
           <button class="app-dialog__btn ${danger ? 'app-dialog__btn--danger' : 'app-dialog__btn--primary'}" id="app-dialog-confirm">
             ${esc(confirmLabel)}
           </button>
@@ -266,7 +267,8 @@ export function showConfirm(message, { confirmLabel = '确认', danger = false, 
  * @param {{ confirmLabel?: string }} [opts]
  * @returns {Promise<Record<string,string>|null>}
  */
-export function showForm(title, fields, { confirmLabel = '保存' } = {}) {
+export function showForm(title, fields, { confirmLabel } = {}) {
+  confirmLabel ??= t('dialog.save');
   return new Promise((resolve) => {
     const el = getEl();
 
@@ -292,7 +294,7 @@ export function showForm(title, fields, { confirmLabel = '保存' } = {}) {
             .join('')}
         </div>
         <div class="app-dialog__actions">
-          <button class="app-dialog__btn" id="app-dialog-cancel" type="button">取消</button>
+          <button class="app-dialog__btn" id="app-dialog-cancel" type="button">${esc(t('dialog.cancel'))}</button>
           <button class="app-dialog__btn app-dialog__btn--primary" id="app-dialog-confirm" type="submit">
             ${esc(confirmLabel)}
           </button>

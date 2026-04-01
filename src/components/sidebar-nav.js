@@ -35,6 +35,7 @@ import {
   updateRequest,
 } from '../db/requests.js';
 import { showPrompt, showConfirm, showForm } from '../core/dialog.js';
+import { t, applyI18n } from '../core/i18n.js';
 
 const LS_EXPANDED = 'hapi-sidebar-expanded';
 const LS_EXPANDED_COLL = 'hapi-sidebar-expanded-coll';
@@ -292,22 +293,22 @@ template.innerHTML = `
     .sw-btn:hover::before { opacity: 1; }
   </style>
   <div class="header">
-    <span class="header-title">项目</span>
-    <div class="icon-btn" id="new-request-btn" title="快速新建请求">${ICON_ADD_REQ}</div>
-    <div class="icon-btn" id="new-project-btn" title="新建项目">${ICON_PLUS}</div>
-    <div class="icon-btn" id="export-btn" title="导出所有数据">${ICON_EXPORT}</div>
-    <div class="icon-btn" id="import-btn" title="从文件导入">${ICON_IMPORT}</div>
-    <div class="icon-btn" id="env-btn" title="环境变量">${ICON_SLIDERS}</div>
+    <span class="header-title" data-i18n="sidebar.title">项目</span>
+    <div class="icon-btn" id="new-request-btn" data-i18n-title="sidebar.newRequest" title="快速新建请求">${ICON_ADD_REQ}</div>
+    <div class="icon-btn" id="new-project-btn" data-i18n-title="sidebar.newProject" title="新建项目">${ICON_PLUS}</div>
+    <div class="icon-btn" id="export-btn" data-i18n-title="sidebar.export" title="导出所有数据">${ICON_EXPORT}</div>
+    <div class="icon-btn" id="import-btn" data-i18n-title="sidebar.import" title="从文件导入">${ICON_IMPORT}</div>
+    <div class="icon-btn" id="env-btn" data-i18n-title="sidebar.envVars" title="环境变量">${ICON_SLIDERS}</div>
   </div>
   <input type="file" id="import-file-input" accept=".json" style="display:none" />
   <div class="search-bar">
-    <input class="search-input" id="search-input" placeholder="搜索请求…" />
+    <input class="search-input" id="search-input" data-i18n-placeholder="sidebar.search" placeholder="搜索请求…" />
   </div>
   <div class="tree" id="tree">
     <div class="empty-projects" id="empty-state">
       <div class="empty-icon">${ICON_FOLDER}</div>
-      <div>暂无项目</div>
-      <div>点击 + 新建项目，或直接新建请求</div>
+      <div data-i18n="sidebar.emptyTitle">暂无项目</div>
+      <div data-i18n="sidebar.emptyHint">点击 + 新建项目，或直接新建请求</div>
     </div>
   </div>
   <div class="footer">
@@ -315,6 +316,7 @@ template.innerHTML = `
     <button
       class="sw-btn"
       id="sw-btn"
+      data-i18n-tooltip="sidebar.swTooltip"
       data-tooltip="注销 Service Worker"
     >${ICON_SW}</button>
   </div>
@@ -338,6 +340,7 @@ class SidebarNav extends HTMLElement {
   #searchQuery = '';
   #dragSrc = null; // { type: 'request'|'collection', id, parentId }
   #dropTarget = null; // { id, position: 'before'|'after' }
+  #i18nHandler = null;
 
   connectedCallback() {
     if (!this.shadowRoot) {
@@ -345,8 +348,18 @@ class SidebarNav extends HTMLElement {
       this.shadowRoot.appendChild(template.content.cloneNode(true));
       this.#loadExpandState();
       this.#bindTopActions();
+      applyI18n(this.shadowRoot);
     }
+    this.#i18nHandler = () => {
+      applyI18n(this.shadowRoot);
+      this.refresh();
+    };
+    window.addEventListener('locale-changed', this.#i18nHandler);
     this.refresh();
+  }
+
+  disconnectedCallback() {
+    window.removeEventListener('locale-changed', this.#i18nHandler);
   }
 
   #loadExpandState() {
@@ -398,16 +411,17 @@ class SidebarNav extends HTMLElement {
     if (!('serviceWorker' in navigator)) return;
     const regs = await navigator.serviceWorker.getRegistrations();
     if (regs.length === 0) {
-      await showConfirm('当前没有已注册的 Service Worker。', {
-        title: 'Service Worker',
-        confirmLabel: '知道了',
+      await showConfirm(t('sidebar.swNone'), {
+        title: t('sidebar.swTitle'),
+        confirmLabel: t('sidebar.swOk'),
       });
       return;
     }
-    const ok = await showConfirm(
-      `将注销 ${regs.length} 个 Service Worker，页面随后自动刷新。缓存的资源文件会被清除。`,
-      { title: '注销 Service Worker', confirmLabel: '注销并刷新', danger: true }
-    );
+    const ok = await showConfirm(t('sidebar.swConfirmMsg', { count: regs.length }), {
+      title: t('sidebar.swConfirmTitle'),
+      confirmLabel: t('sidebar.swConfirmBtn'),
+      danger: true,
+    });
     if (!ok) return;
     await Promise.all(regs.map((r) => r.unregister()));
     const keys = await caches.keys();
@@ -464,9 +478,9 @@ class SidebarNav extends HTMLElement {
         <div class="node-icon">${ICON_PROJECT}</div>
         <div class="project-name">${this.#highlight(project.name, q)}</div>
         <div class="row-actions">
-          <div class="action-btn" data-action="rename" title="编辑">${ICON_PENCIL}</div>
-          <div class="action-btn" data-action="add-collection" title="新建集合">${ICON_PLUS}</div>
-          <div class="action-btn del" data-action="delete" title="删除项目">${ICON_CROSS}</div>
+          <div class="action-btn" data-action="rename" title="${t('sidebar.editBtn')}">${ICON_PENCIL}</div>
+          <div class="action-btn" data-action="add-collection" title="${t('sidebar.newCollectionBtn')}">${ICON_PLUS}</div>
+          <div class="action-btn del" data-action="delete" title="${t('sidebar.deleteProjectBtn')}">${ICON_CROSS}</div>
         </div>
       `;
       row.addEventListener('click', async (e) => {
@@ -525,9 +539,9 @@ class SidebarNav extends HTMLElement {
             <div class="node-icon">${ICON_COLLECTION}</div>
             <div class="collection-name">${this.#highlight(col.name, q)}</div>
             <div class="row-actions">
-              <div class="action-btn" data-action="rename" title="编辑">${ICON_PENCIL}</div>
-              <div class="action-btn" data-action="add-request" title="新建请求">${ICON_PLUS}</div>
-              <div class="action-btn del" data-action="delete" title="删除集合">${ICON_CROSS}</div>
+              <div class="action-btn" data-action="rename" title="${t('sidebar.editBtn')}">${ICON_PENCIL}</div>
+              <div class="action-btn" data-action="add-request" title="${t('sidebar.addRequestBtn')}">${ICON_PLUS}</div>
+              <div class="action-btn del" data-action="delete" title="${t('sidebar.deleteCollectionBtn')}">${ICON_CROSS}</div>
             </div>
           `;
           colRow.addEventListener('click', async (e) => {
@@ -572,9 +586,9 @@ class SidebarNav extends HTMLElement {
                 <span class="method-badge" style="color:${color}">${this.#esc(req.method)}</span>
                 <span class="request-name">${this.#highlight(req.name, q)}</span>
                 <div class="row-actions">
-                  <div class="action-btn" data-action="rename" title="重命名">${ICON_PENCIL}</div>
-                  <div class="action-btn" data-action="duplicate" title="复制请求">${ICON_COPY}</div>
-                  <div class="action-btn del" data-action="delete" title="删除请求">${ICON_CROSS}</div>
+                  <div class="action-btn" data-action="rename" title="${t('sidebar.renameBtn')}">${ICON_PENCIL}</div>
+                  <div class="action-btn" data-action="duplicate" title="${t('sidebar.duplicateBtn')}">${ICON_COPY}</div>
+                  <div class="action-btn del" data-action="delete" title="${t('sidebar.deleteReqBtn')}">${ICON_CROSS}</div>
                 </div>
               `;
               reqRow.addEventListener('click', async (e) => {
@@ -653,10 +667,10 @@ class SidebarNav extends HTMLElement {
       )
         return;
       const s = { ...this.#dragSrc };
-      const t = { ...this.#dropTarget };
+      const tgt = { ...this.#dropTarget };
       this.#dragSrc = null;
       this.#dropTarget = null;
-      await this.#doReorder(s.type, s.parentId, s.id, t);
+      await this.#doReorder(s.type, s.parentId, s.id, tgt);
     });
   }
 
@@ -696,9 +710,14 @@ class SidebarNav extends HTMLElement {
   }
 
   async #newProject() {
-    const result = await showForm('新建项目', [
-      { id: 'name', label: '名称', placeholder: '项目名称' },
-      { id: 'description', label: '备注', type: 'textarea', placeholder: '可选备注（可留空）' },
+    const result = await showForm(t('sidebar.newProjectTitle'), [
+      { id: 'name', label: t('sidebar.nameLabel'), placeholder: t('sidebar.namePlaceholder') },
+      {
+        id: 'description',
+        label: t('sidebar.descLabel'),
+        type: 'textarea',
+        placeholder: t('sidebar.descPlaceholder'),
+      },
     ]);
     if (!result || !result.name.trim()) return;
     const project = await createProject({
@@ -711,14 +730,19 @@ class SidebarNav extends HTMLElement {
   }
 
   async #renameProject(project) {
-    const result = await showForm('编辑项目', [
-      { id: 'name', label: '名称', defaultValue: project.name, placeholder: '项目名称' },
+    const result = await showForm(t('sidebar.editProjectTitle'), [
+      {
+        id: 'name',
+        label: t('sidebar.nameLabel'),
+        defaultValue: project.name,
+        placeholder: t('sidebar.namePlaceholder'),
+      },
       {
         id: 'description',
-        label: '备注',
+        label: t('sidebar.descLabel'),
         type: 'textarea',
         defaultValue: project.description ?? '',
-        placeholder: '可选备注（可留空）',
+        placeholder: t('sidebar.descPlaceholder'),
       },
     ]);
     if (!result) return;
@@ -729,9 +753,9 @@ class SidebarNav extends HTMLElement {
   }
 
   async #deleteProject(id) {
-    const ok = await showConfirm('确认删除该项目及其所有集合与请求？此操作不可撤销。', {
-      title: '删除项目',
-      confirmLabel: '删除',
+    const ok = await showConfirm(t('sidebar.deleteProjectConfirm'), {
+      title: t('sidebar.deleteProjectTitle'),
+      confirmLabel: t('sidebar.deleteLabel'),
       danger: true,
     });
     if (!ok) return;
@@ -742,9 +766,14 @@ class SidebarNav extends HTMLElement {
   }
 
   async #newCollection(projectId) {
-    const result = await showForm('新建集合', [
-      { id: 'name', label: '名称', placeholder: '集合名称' },
-      { id: 'description', label: '备注', type: 'textarea', placeholder: '可选备注（可留空）' },
+    const result = await showForm(t('sidebar.newCollectionTitle'), [
+      { id: 'name', label: t('sidebar.nameLabel'), placeholder: t('sidebar.collNamePlaceholder') },
+      {
+        id: 'description',
+        label: t('sidebar.descLabel'),
+        type: 'textarea',
+        placeholder: t('sidebar.descPlaceholder'),
+      },
     ]);
     if (!result || !result.name.trim()) return;
     const col = await createCollection({
@@ -759,14 +788,19 @@ class SidebarNav extends HTMLElement {
   }
 
   async #renameCollection(col) {
-    const result = await showForm('编辑集合', [
-      { id: 'name', label: '名称', defaultValue: col.name, placeholder: '集合名称' },
+    const result = await showForm(t('sidebar.editCollectionTitle'), [
+      {
+        id: 'name',
+        label: t('sidebar.nameLabel'),
+        defaultValue: col.name,
+        placeholder: t('sidebar.collNamePlaceholder'),
+      },
       {
         id: 'description',
-        label: '备注',
+        label: t('sidebar.descLabel'),
         type: 'textarea',
         defaultValue: col.description ?? '',
-        placeholder: '可选备注（可留空）',
+        placeholder: t('sidebar.descPlaceholder'),
       },
     ]);
     if (!result) return;
@@ -777,9 +811,9 @@ class SidebarNav extends HTMLElement {
   }
 
   async #deleteCollection(id) {
-    const ok = await showConfirm('确认删除该集合及其所有请求？此操作不可撤销。', {
-      title: '删除集合',
-      confirmLabel: '删除',
+    const ok = await showConfirm(t('sidebar.deleteCollConfirm'), {
+      title: t('sidebar.deleteCollTitle'),
+      confirmLabel: t('sidebar.deleteLabel'),
       danger: true,
     });
     if (!ok) return;
@@ -794,14 +828,18 @@ class SidebarNav extends HTMLElement {
     const projects = await listProjects();
     let project;
     if (projects.length === 0) {
-      project = await createProject({ name: '默认', description: '' });
+      project = await createProject({ name: t('sidebar.defaultName'), description: '' });
     } else {
       project = projects[0];
     }
     const collections = await listCollections(project.id);
     let col;
     if (collections.length === 0) {
-      col = await createCollection({ projectId: project.id, name: '默认', description: '' });
+      col = await createCollection({
+        projectId: project.id,
+        name: t('sidebar.defaultName'),
+        description: '',
+      });
     } else {
       col = collections[0];
     }
@@ -812,7 +850,7 @@ class SidebarNav extends HTMLElement {
   }
 
   async #newRequest(collectionId, projectId = null) {
-    const req = await createRequest({ collectionId, name: '新请求' });
+    const req = await createRequest({ collectionId, name: t('sidebar.newRequestName') });
     this.#activeRequestId = req.id;
     await this.refresh();
     this.dispatchEvent(
@@ -825,9 +863,9 @@ class SidebarNav extends HTMLElement {
   }
 
   async #renameRequest(req) {
-    const name = await showPrompt('重命名请求', {
+    const name = await showPrompt(t('sidebar.renameReqTitle'), {
       defaultValue: req.name,
-      placeholder: '请求名称',
+      placeholder: t('sidebar.renameReqPlaceholder'),
     });
     if (!name) return;
     await updateRequest(req.id, { name, nameIsAuto: false });
@@ -840,9 +878,9 @@ class SidebarNav extends HTMLElement {
   }
 
   async #deleteReq(id) {
-    const ok = await showConfirm('确认删除该请求？此操作不可撤销。', {
-      title: '删除请求',
-      confirmLabel: '删除',
+    const ok = await showConfirm(t('sidebar.deleteReqConfirm'), {
+      title: t('sidebar.deleteReqTitle'),
+      confirmLabel: t('sidebar.deleteLabel'),
       danger: true,
     });
     if (!ok) return;
@@ -899,7 +937,7 @@ class SidebarNav extends HTMLElement {
       const text = await file.text();
       const data = JSON.parse(text);
       if (!data.projects || !Array.isArray(data.projects)) {
-        throw new Error('无效的导入文件格式');
+        throw new Error(t('sidebar.importInvalid'));
       }
       let importedReqs = 0;
       for (const p of data.projects) {
@@ -922,14 +960,17 @@ class SidebarNav extends HTMLElement {
       }
       this.#persistExpanded();
       await this.refresh();
-      await showConfirm(`成功导入 ${data.projects.length} 个项目，共 ${importedReqs} 条请求。`, {
-        title: '导入成功',
-        confirmLabel: '确定',
-      });
+      await showConfirm(
+        t('sidebar.importSuccessMsg', { projects: data.projects.length, requests: importedReqs }),
+        {
+          title: t('sidebar.importSuccessTitle'),
+          confirmLabel: t('sidebar.importOk'),
+        }
+      );
     } catch (err) {
-      await showConfirm(`导入失败：${err.message}`, {
-        title: '导入错误',
-        confirmLabel: '确定',
+      await showConfirm(err.message, {
+        title: t('sidebar.importFailTitle'),
+        confirmLabel: t('sidebar.importOk'),
         danger: true,
       });
     }

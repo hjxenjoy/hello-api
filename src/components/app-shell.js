@@ -13,6 +13,7 @@ import './response-viewer.js';
 import './env-manager.js';
 import './storage-indicator.js';
 import { getActiveEnvironment } from '../db/environments.js';
+import { t, getLocale, setLocale, applyI18n } from '../core/i18n.js';
 
 const template = document.createElement('template');
 template.innerHTML = `
@@ -123,6 +124,20 @@ template.innerHTML = `
       transition: background 0.15s;
     }
     .theme-btn:hover { background: var(--color-surface-3); }
+    .lang-btn {
+      padding: 2px 7px;
+      font-size: 11px;
+      font-weight: 600;
+      border-radius: 4px;
+      border: 1px solid var(--color-border);
+      color: var(--color-text-secondary);
+      cursor: pointer;
+      background: none;
+      transition: all 0.15s;
+      white-space: nowrap;
+      letter-spacing: 0.03em;
+    }
+    .lang-btn:hover { border-color: var(--color-accent); color: var(--color-accent); background: var(--color-accent-muted); }
     .net-badge {
       display: none;
       align-items: center;
@@ -227,20 +242,21 @@ template.innerHTML = `
 
     <div class="main" id="main">
       <div class="topbar">
-        <div class="menu-btn" id="menu-btn" title="菜单">${ICON_MENU}</div>
+        <div class="menu-btn" id="menu-btn" data-i18n-title="app.menuTitle" title="菜单">${ICON_MENU}</div>
         <div class="brand">
           <div class="brand-logo">${LOGO_SVG}</div>
           <span class="topbar-title" id="topbar-title">Hello API</span>
         </div>
         <div class="net-badge" id="net-badge">
           <div class="net-dot"></div>
-          <span>已离线</span>
+          <span data-i18n="app.offline">已离线</span>
         </div>
-        <div class="env-badge" id="env-badge" title="切换环境">
+        <div class="env-badge" id="env-badge" data-i18n-title="app.toggleEnv" title="切换环境">
           <div class="env-dot" id="env-dot"></div>
           <span id="env-name">无环境</span>
         </div>
-        <div class="theme-btn" id="theme-btn" title="切换主题"></div>
+        <button class="lang-btn" id="lang-btn"></button>
+        <div class="theme-btn" id="theme-btn" data-i18n-title="app.toggleTheme" title="切换主题"></div>
       </div>
 
       <div class="workspace" id="workspace">
@@ -260,13 +276,30 @@ template.innerHTML = `
 class AppShell extends HTMLElement {
   #currentProjectId = null;
   #currentEnvironment = null;
+  #i18nHandler = null;
 
   connectedCallback() {
     if (!this.shadowRoot) {
       this.attachShadow({ mode: 'open' });
       this.shadowRoot.appendChild(template.content.cloneNode(true));
       this.#bindEvents();
+      this.#applyI18n();
     }
+    this.#i18nHandler = () => this.#applyI18n();
+    window.addEventListener('locale-changed', this.#i18nHandler);
+  }
+
+  disconnectedCallback() {
+    window.removeEventListener('locale-changed', this.#i18nHandler);
+  }
+
+  #applyI18n() {
+    applyI18n(this.shadowRoot);
+    // Update lang button to show current locale
+    const btn = this.shadowRoot.getElementById('lang-btn');
+    if (btn) btn.textContent = getLocale() === 'zh' ? 'EN' : '中';
+    // Re-apply env badge (uses t() internally)
+    this.#updateEnvBadge();
   }
 
   #bindEvents() {
@@ -284,6 +317,13 @@ class AppShell extends HTMLElement {
     this.shadowRoot
       .getElementById('sidebar-overlay')
       .addEventListener('click', () => this.#closeSidebar());
+
+    // Language toggle
+    const langBtn = this.shadowRoot.getElementById('lang-btn');
+    langBtn.textContent = getLocale() === 'zh' ? 'EN' : '中';
+    langBtn.addEventListener('click', () => {
+      setLocale(getLocale() === 'zh' ? 'en' : 'zh');
+    });
 
     // Theme toggle
     const themeBtn = this.shadowRoot.getElementById('theme-btn');
@@ -361,7 +401,7 @@ class AppShell extends HTMLElement {
       name.textContent = this.#currentEnvironment.name;
     } else {
       dot.className = 'env-dot';
-      name.textContent = '无环境';
+      name.textContent = t('app.noEnv');
     }
   }
 
@@ -370,7 +410,7 @@ class AppShell extends HTMLElement {
     workspace.innerHTML = `
       <div class="empty-workspace" id="empty-workspace">
         <div class="empty-icon">${ICON_SEND}</div>
-        <div>从左侧选择或新建一个请求</div>
+        <div>${t('app.noRequest')}</div>
       </div>
     `;
   }

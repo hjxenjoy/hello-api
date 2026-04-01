@@ -2,6 +2,7 @@
 
 import { getStorageStats, formatBytes } from '../core/storage-stats.js';
 import { showForm } from '../core/dialog.js';
+import { t } from '../core/i18n.js';
 
 const WARN_KEY = 'storage-warn-bytes';
 const DANGER_KEY = 'storage-danger-bytes';
@@ -82,13 +83,14 @@ template.innerHTML = `
   <div class="bar-wrap">
     <div class="bar" id="bar" style="width:0%"></div>
   </div>
-  <button class="settings-btn" id="settings-btn" title="配置存储预警阈值">
+  <button class="settings-btn" id="settings-btn" data-i18n-title="storage.settingsTitle" title="配置存储预警阈值">
     ${ICON_SETTINGS}
   </button>
 `;
 
 class StorageIndicator extends HTMLElement {
   #interval = null;
+  #i18nHandler = null;
 
   connectedCallback() {
     if (!this.shadowRoot) {
@@ -100,10 +102,16 @@ class StorageIndicator extends HTMLElement {
     }
     this.#refresh();
     this.#interval = setInterval(() => this.#refresh(), 30_000);
+    this.#i18nHandler = () => {
+      this.shadowRoot.getElementById('settings-btn').title = t('storage.settingsTitle');
+      this.#refresh();
+    };
+    window.addEventListener('locale-changed', this.#i18nHandler);
   }
 
   disconnectedCallback() {
     clearInterval(this.#interval);
+    window.removeEventListener('locale-changed', this.#i18nHandler);
   }
 
   async #refresh() {
@@ -112,7 +120,7 @@ class StorageIndicator extends HTMLElement {
     const bar = this.shadowRoot.getElementById('bar');
 
     if (stats.usageFormatted === 'N/A') {
-      label.textContent = '存储: N/A';
+      label.textContent = t('storage.na');
       bar.style.width = '0%';
       return;
     }
@@ -137,24 +145,24 @@ class StorageIndicator extends HTMLElement {
     const { warn, danger } = getThresholds();
 
     const result = await showForm(
-      '存储预警阈值',
+      t('storage.settingsFormTitle'),
       [
         {
           id: 'warn',
-          label: '黄色预警（MB）',
-          placeholder: '例如 100',
+          label: t('storage.warnLabel'),
+          placeholder: t('storage.warnPlaceholder'),
           defaultValue: String(Math.round(warn / 1024 / 1024)),
           type: 'number',
         },
         {
           id: 'danger',
-          label: '红色警告（MB）',
-          placeholder: '例如 1024',
+          label: t('storage.dangerLabel'),
+          placeholder: t('storage.dangerPlaceholder'),
           defaultValue: String(Math.round(danger / 1024 / 1024)),
           type: 'number',
         },
       ],
-      { confirmLabel: '保存' }
+      { confirmLabel: t('storage.save') }
     );
 
     if (!result) return;

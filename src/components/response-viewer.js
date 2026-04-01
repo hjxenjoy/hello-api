@@ -1,5 +1,7 @@
 // <response-viewer> Web Component - response display (status, timing, body)
 
+import { t, applyI18n } from '../core/i18n.js';
+
 const ICON_RESPONSE = `<svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 10H10a4 4 0 000 8h4"/><path d="M10 14l-4 4 4 4"/></svg>`;
 const ICON_COPY = `<svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="7.5" height="7.5" rx="1"/><path d="M2 9V2.5a1 1 0 011-1H9"/></svg>`;
 
@@ -235,10 +237,10 @@ template.innerHTML = `
     }
   </style>
   <div class="toolbar">
-    <span class="title">响应</span>
+    <span class="title" data-i18n="res.title">响应</span>
     <div class="status-badge" id="status-badge"></div>
     <div class="meta" id="meta"></div>
-    <button class="copy-body-btn" id="copy-body-btn" disabled>${ICON_COPY} 复制</button>
+    <button class="copy-body-btn" id="copy-body-btn" disabled>${ICON_COPY} <span id="copy-body-label">复制</span></button>
   </div>
   <div class="tabs" id="tabs">
     <div class="tab active" data-tab="body">Body</div>
@@ -248,25 +250,25 @@ template.innerHTML = `
   <div class="panel active" id="panel-body">
     <div class="empty-state" id="empty-state">
       <div class="empty-icon">${ICON_RESPONSE}</div>
-      <div>发送请求后查看响应</div>
+      <div data-i18n="res.empty">发送请求后查看响应</div>
     </div>
     <div class="loading-state" id="loading-state" style="display:none">
       <div class="spinner"></div>
-      <div>发送中…</div>
+      <div data-i18n="res.sending">发送中…</div>
     </div>
     <div class="body-content" id="body-content" style="display:none"></div>
     <div class="error-body" id="error-body" style="display:none"></div>
   </div>
   <div class="panel" id="panel-headers">
     <table class="headers-table" id="headers-table">
-      <thead><tr><th>名称</th><th>值</th></tr></thead>
+      <thead><tr><th data-i18n="res.headerName">名称</th><th data-i18n="res.headerValue">值</th></tr></thead>
       <tbody id="headers-tbody"></tbody>
     </table>
   </div>
   <div class="panel" id="panel-preview">
     <div class="preview-wrap" id="preview-wrap">
       <div class="preview-unsupported">
-        <div>发送请求后查看预览</div>
+        <div data-i18n="res.noPreview">发送请求后查看预览</div>
       </div>
     </div>
   </div>
@@ -275,6 +277,7 @@ template.innerHTML = `
 class ResponseViewer extends HTMLElement {
   #blobUrl = null;
   #rawBody = null;
+  #i18nHandler = null;
 
   connectedCallback() {
     if (!this.shadowRoot) {
@@ -282,11 +285,15 @@ class ResponseViewer extends HTMLElement {
       this.shadowRoot.appendChild(template.content.cloneNode(true));
       this.#bindTabs();
       this.#bindCopyBody();
+      applyI18n(this.shadowRoot);
     }
+    this.#i18nHandler = () => applyI18n(this.shadowRoot);
+    window.addEventListener('locale-changed', this.#i18nHandler);
   }
 
   disconnectedCallback() {
     this.#revokeBlobUrl();
+    window.removeEventListener('locale-changed', this.#i18nHandler);
   }
 
   #bindTabs() {
@@ -307,10 +314,10 @@ class ResponseViewer extends HTMLElement {
     this.shadowRoot.getElementById('copy-body-btn').addEventListener('click', async () => {
       if (this.#rawBody === null) return;
       await navigator.clipboard.writeText(this.#rawBody);
-      const btn = this.shadowRoot.getElementById('copy-body-btn');
-      btn.textContent = '已复制！';
+      const label = this.shadowRoot.getElementById('copy-body-label');
+      label.textContent = t('res.copied');
       setTimeout(() => {
-        btn.innerHTML = `${ICON_COPY} 复制`;
+        label.textContent = t('res.copy');
       }, 2000);
     });
   }
@@ -325,11 +332,12 @@ class ResponseViewer extends HTMLElement {
   setLoading() {
     this.#revokeBlobUrl();
     this.#rawBody = null;
-    this.shadowRoot.getElementById('copy-body-btn').disabled = true;
-    this.shadowRoot.getElementById('copy-body-btn').innerHTML = `${ICON_COPY} 复制`;
+    const copyBtn = this.shadowRoot.getElementById('copy-body-btn');
+    copyBtn.disabled = true;
+    this.shadowRoot.getElementById('copy-body-label').textContent = t('res.copy');
     const badge = this.shadowRoot.getElementById('status-badge');
     badge.className = 'status-badge visible';
-    badge.textContent = '发送中';
+    badge.textContent = t('res.sendingBadge');
     badge.style.background = 'var(--color-accent-muted)';
     badge.style.color = 'var(--color-accent)';
     this.shadowRoot.getElementById('meta').textContent = '';
@@ -338,7 +346,7 @@ class ResponseViewer extends HTMLElement {
     this.shadowRoot.getElementById('error-body').style.display = 'none';
     this.shadowRoot.getElementById('loading-state').style.display = 'flex';
     this.shadowRoot.getElementById('preview-wrap').innerHTML =
-      '<div class="preview-unsupported"><div>发送请求后查看预览</div></div>';
+      `<div class="preview-unsupported"><div>${t('res.noPreview')}</div></div>`;
   }
 
   setResponse(response, { cached = false } = {}) {
@@ -357,15 +365,16 @@ class ResponseViewer extends HTMLElement {
     if (response.error) {
       this.#rawBody = null;
       this.shadowRoot.getElementById('copy-body-btn').disabled = true;
+      this.shadowRoot.getElementById('copy-body-label').textContent = t('res.copy');
       badge.className = 'status-badge visible error';
       badge.style.cssText = '';
-      badge.textContent = '错误';
-      meta.innerHTML = `<span class="meta-item">耗时 <span>${response.duration}ms</span></span>`;
+      badge.textContent = t('res.error');
+      meta.innerHTML = `<span class="meta-item">${this.#escHtml(t('res.durationLabel'))} <span>${response.duration}ms</span></span>`;
       bodyContent.style.display = 'none';
       errorBody.style.display = 'block';
       errorBody.textContent = response.error;
       this.shadowRoot.getElementById('preview-wrap').innerHTML =
-        '<div class="preview-unsupported"><div>请求失败，无内容可预览</div></div>';
+        `<div class="preview-unsupported"><div>${t('res.failPreview')}</div></div>`;
       return;
     }
 
@@ -377,11 +386,11 @@ class ResponseViewer extends HTMLElement {
 
     const cachedPart =
       cached && response.requestedAt
-        ? `<span class="cached-badge">缓存 · ${new Date(response.requestedAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>`
+        ? `<span class="cached-badge">${this.#escHtml(t('res.cached'))} · ${new Date(response.requestedAt).toLocaleString(undefined, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>`
         : '';
     meta.innerHTML = [
-      `<span class="meta-item">耗时 <span>${response.duration}ms</span></span>`,
-      `<span class="meta-item">大小 <span>${this.#formatSize(response.size)}</span></span>`,
+      `<span class="meta-item">${this.#escHtml(t('res.durationLabel'))} <span>${response.duration}ms</span></span>`,
+      `<span class="meta-item">${this.#escHtml(t('res.sizeLabel'))} <span>${this.#formatSize(response.size)}</span></span>`,
       cachedPart,
     ].join('');
 
@@ -390,7 +399,7 @@ class ResponseViewer extends HTMLElement {
     this.#rawBody = response.body ?? '';
     const copyBtn = this.shadowRoot.getElementById('copy-body-btn');
     copyBtn.disabled = false;
-    copyBtn.innerHTML = `${ICON_COPY} 复制`;
+    this.shadowRoot.getElementById('copy-body-label').textContent = t('res.copy');
 
     const contentType = response.headers?.['content-type'] ?? '';
     if (contentType.includes('application/json')) {
@@ -430,7 +439,7 @@ class ResponseViewer extends HTMLElement {
       } else if (contentType.includes('application/pdf')) {
         wrap.innerHTML = `<iframe src="${this.#blobUrl}" title="PDF preview"></iframe>`;
       } else {
-        wrap.innerHTML = `<div class="preview-unsupported"><div>不支持预览此类型</div><code>${this.#escHtml(contentType)}</code></div>`;
+        wrap.innerHTML = `<div class="preview-unsupported"><div>${t('res.unsupportedBinary')}</div><code>${this.#escHtml(contentType)}</code></div>`;
       }
       return;
     }
@@ -450,7 +459,7 @@ class ResponseViewer extends HTMLElement {
       return;
     }
 
-    wrap.innerHTML = `<div class="preview-unsupported"><div>此内容类型不支持预览</div>${contentType ? `<code>${this.#escHtml(contentType)}</code>` : ''}</div>`;
+    wrap.innerHTML = `<div class="preview-unsupported"><div>${t('res.unsupportedPreview')}</div>${contentType ? `<code>${this.#escHtml(contentType)}</code>` : ''}</div>`;
   }
 
   #formatSize(bytes) {
