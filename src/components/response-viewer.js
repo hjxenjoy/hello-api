@@ -240,7 +240,7 @@ template.innerHTML = `
     <span class="title" data-i18n="res.title">响应</span>
     <div class="status-badge" id="status-badge"></div>
     <div class="meta" id="meta"></div>
-    <button class="copy-body-btn" id="copy-body-btn" disabled>${ICON_COPY} <span id="copy-body-label">复制</span></button>
+    <button class="copy-body-btn" id="copy-body-btn" disabled>${ICON_COPY} <span id="copy-body-label" data-i18n="res.copy">复制</span></button>
   </div>
   <div class="tabs" id="tabs">
     <div class="tab active" data-tab="body">Body</div>
@@ -278,6 +278,8 @@ class ResponseViewer extends HTMLElement {
   #blobUrl = null;
   #rawBody = null;
   #i18nHandler = null;
+  #lastResponse = null;
+  #lastCached = false;
 
   connectedCallback() {
     if (!this.shadowRoot) {
@@ -287,13 +289,40 @@ class ResponseViewer extends HTMLElement {
       this.#bindCopyBody();
       applyI18n(this.shadowRoot);
     }
-    this.#i18nHandler = () => applyI18n(this.shadowRoot);
+    this.#i18nHandler = () => {
+      applyI18n(this.shadowRoot);
+      this.#refreshMeta();
+    };
     window.addEventListener('locale-changed', this.#i18nHandler);
   }
 
   disconnectedCallback() {
     this.#revokeBlobUrl();
     window.removeEventListener('locale-changed', this.#i18nHandler);
+  }
+
+  #refreshMeta() {
+    if (!this.#lastResponse) return;
+    const response = this.#lastResponse;
+    const cached = this.#lastCached;
+    const meta = this.shadowRoot.getElementById('meta');
+    const badge = this.shadowRoot.getElementById('status-badge');
+
+    if (response.error) {
+      badge.textContent = t('res.error');
+      meta.innerHTML = `<span class="meta-item">${this.#escHtml(t('res.durationLabel'))} <span>${response.duration}ms</span></span>`;
+      return;
+    }
+
+    const cachedPart =
+      cached && response.requestedAt
+        ? `<span class="cached-badge">${this.#escHtml(t('res.cached'))} · ${new Date(response.requestedAt).toLocaleString(undefined, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>`
+        : '';
+    meta.innerHTML = [
+      `<span class="meta-item">${this.#escHtml(t('res.durationLabel'))} <span>${response.duration}ms</span></span>`,
+      `<span class="meta-item">${this.#escHtml(t('res.sizeLabel'))} <span>${this.#formatSize(response.size)}</span></span>`,
+      cachedPart,
+    ].join('');
   }
 
   #bindTabs() {
@@ -332,6 +361,8 @@ class ResponseViewer extends HTMLElement {
   setLoading() {
     this.#revokeBlobUrl();
     this.#rawBody = null;
+    this.#lastResponse = null;
+    this.#lastCached = false;
     const copyBtn = this.shadowRoot.getElementById('copy-body-btn');
     copyBtn.disabled = true;
     this.shadowRoot.getElementById('copy-body-label').textContent = t('res.copy');
@@ -351,9 +382,10 @@ class ResponseViewer extends HTMLElement {
 
   setResponse(response, { cached = false } = {}) {
     this.#revokeBlobUrl();
+    this.#lastResponse = response;
+    this.#lastCached = cached;
 
     const badge = this.shadowRoot.getElementById('status-badge');
-    const meta = this.shadowRoot.getElementById('meta');
     const emptyState = this.shadowRoot.getElementById('empty-state');
     const bodyContent = this.shadowRoot.getElementById('body-content');
     const errorBody = this.shadowRoot.getElementById('error-body');
@@ -365,16 +397,14 @@ class ResponseViewer extends HTMLElement {
     if (response.error) {
       this.#rawBody = null;
       this.shadowRoot.getElementById('copy-body-btn').disabled = true;
-      this.shadowRoot.getElementById('copy-body-label').textContent = t('res.copy');
       badge.className = 'status-badge visible error';
       badge.style.cssText = '';
-      badge.textContent = t('res.error');
-      meta.innerHTML = `<span class="meta-item">${this.#escHtml(t('res.durationLabel'))} <span>${response.duration}ms</span></span>`;
       bodyContent.style.display = 'none';
       errorBody.style.display = 'block';
       errorBody.textContent = response.error;
       this.shadowRoot.getElementById('preview-wrap').innerHTML =
         `<div class="preview-unsupported"><div>${t('res.failPreview')}</div></div>`;
+      this.#refreshMeta();
       return;
     }
 
@@ -384,22 +414,13 @@ class ResponseViewer extends HTMLElement {
     badge.style.cssText = '';
     badge.textContent = `${s} ${response.statusText}`;
 
-    const cachedPart =
-      cached && response.requestedAt
-        ? `<span class="cached-badge">${this.#escHtml(t('res.cached'))} · ${new Date(response.requestedAt).toLocaleString(undefined, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>`
-        : '';
-    meta.innerHTML = [
-      `<span class="meta-item">${this.#escHtml(t('res.durationLabel'))} <span>${response.duration}ms</span></span>`,
-      `<span class="meta-item">${this.#escHtml(t('res.sizeLabel'))} <span>${this.#formatSize(response.size)}</span></span>`,
-      cachedPart,
-    ].join('');
+    this.#refreshMeta();
 
     errorBody.style.display = 'none';
     bodyContent.style.display = 'block';
     this.#rawBody = response.body ?? '';
     const copyBtn = this.shadowRoot.getElementById('copy-body-btn');
     copyBtn.disabled = false;
-    this.shadowRoot.getElementById('copy-body-label').textContent = t('res.copy');
 
     const contentType = response.headers?.['content-type'] ?? '';
     if (contentType.includes('application/json')) {
