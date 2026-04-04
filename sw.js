@@ -4,7 +4,7 @@
 // and network errors surface normally when the dev server is stopped.
 const isDev = self.location.hostname === 'localhost' || self.location.hostname === '127.0.0.1';
 
-const CACHE_NAME = 'hello-api-v1';
+const CACHE_NAME = 'hello-api-v2';
 
 const STATIC_ASSETS = [
   '/',
@@ -25,6 +25,7 @@ const STATIC_ASSETS = [
   '/src/db/projects.js',
   '/src/db/requests.js',
   '/src/db/environments.js',
+  '/src/db/history.js',
   '/src/core/http-client.js',
   '/src/core/interpolation.js',
   '/src/core/storage-stats.js',

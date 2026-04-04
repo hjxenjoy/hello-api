@@ -1,6 +1,7 @@
 // <response-viewer> Web Component - response display (status, timing, body)
 
 import { t, applyI18n } from '../core/i18n.js';
+import { listHistory, clearHistory } from '../db/history.js';
 
 const ICON_RESPONSE = `<svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 10H10a4 4 0 000 8h4"/><path d="M10 14l-4 4 4 4"/></svg>`;
 const ICON_COPY = `<svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="7.5" height="7.5" rx="1"/><path d="M2 9V2.5a1 1 0 011-1H9"/></svg>`;
@@ -189,6 +190,96 @@ template.innerHTML = `
       font-size: 12px;
       white-space: pre-wrap;
     }
+    /* Cancelled state */
+    .cancelled-state {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      color: var(--color-text-tertiary);
+      font-size: 12px;
+    }
+    /* History panel */
+    .history-header {
+      display: flex;
+      align-items: center;
+      padding: 6px 12px;
+      border-bottom: 1px solid var(--color-border);
+      flex-shrink: 0;
+      gap: 8px;
+    }
+    .history-count-label {
+      flex: 1;
+      font-size: 11px;
+      color: var(--color-text-tertiary);
+    }
+    .history-clear-btn {
+      font-size: 11px;
+      color: var(--color-text-tertiary);
+      background: none;
+      border: 1px solid var(--color-border);
+      border-radius: 3px;
+      padding: 2px 8px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .history-clear-btn:hover {
+      color: var(--color-error);
+      border-color: var(--color-error);
+      background: var(--color-error-muted);
+    }
+    .history-list { flex: 1; overflow-y: auto; }
+    .history-empty {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      font-size: 12px;
+      color: var(--color-text-tertiary);
+    }
+    .history-entry {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 12px;
+      border-bottom: 1px solid var(--color-border-subtle);
+      cursor: pointer;
+      transition: background 0.1s;
+    }
+    .history-entry:hover { background: var(--color-surface-2); }
+    .history-method {
+      font-size: 10px;
+      font-weight: 700;
+      font-family: var(--font-mono);
+      min-width: 48px;
+    }
+    .history-status {
+      font-size: 11px;
+      font-weight: 600;
+      min-width: 32px;
+    }
+    .history-status.s2xx { color: #22c55e; }
+    .history-status.s3xx { color: #f59e0b; }
+    .history-status.s4xx, .history-status.s5xx { color: #ef4444; }
+    .history-status.error { color: #ef4444; }
+    .history-url {
+      flex: 1;
+      font-size: 11px;
+      font-family: var(--font-mono);
+      color: var(--color-text-secondary);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      min-width: 0;
+    }
+    .history-meta {
+      font-size: 10px;
+      color: var(--color-text-tertiary);
+      white-space: nowrap;
+      text-align: right;
+    }
     /* Preview panel */
     #panel-preview {
       overflow: hidden;
@@ -246,6 +337,7 @@ template.innerHTML = `
     <div class="tab active" data-tab="body">Body</div>
     <div class="tab" data-tab="headers">Headers</div>
     <div class="tab" data-tab="preview">Preview</div>
+    <div class="tab" data-tab="history" data-i18n="res.tabHistory">历史</div>
   </div>
   <div class="panel active" id="panel-body">
     <div class="empty-state" id="empty-state">
@@ -258,6 +350,9 @@ template.innerHTML = `
     </div>
     <div class="body-content" id="body-content" style="display:none"></div>
     <div class="error-body" id="error-body" style="display:none"></div>
+    <div class="cancelled-state" id="cancelled-state" style="display:none">
+      <div data-i18n="res.cancelled">已取消</div>
+    </div>
   </div>
   <div class="panel" id="panel-headers">
     <table class="headers-table" id="headers-table">
@@ -272,7 +367,24 @@ template.innerHTML = `
       </div>
     </div>
   </div>
+  <div class="panel" id="panel-history">
+    <div class="history-header">
+      <span class="history-count-label" id="history-count-label"></span>
+      <button class="history-clear-btn" id="history-clear-btn" data-i18n="res.historyClear">清除</button>
+    </div>
+    <div class="history-list" id="history-list"></div>
+  </div>
 `;
+
+const METHOD_COLORS = {
+  GET: '#22c55e',
+  POST: '#3b82f6',
+  PUT: '#f59e0b',
+  PATCH: '#8b5cf6',
+  DELETE: '#ef4444',
+  HEAD: '#06b6d4',
+  OPTIONS: '#64748b',
+};
 
 class ResponseViewer extends HTMLElement {
   #blobUrl = null;
@@ -280,6 +392,7 @@ class ResponseViewer extends HTMLElement {
   #i18nHandler = null;
   #lastResponse = null;
   #lastCached = false;
+  #requestId = null;
 
   connectedCallback() {
     if (!this.shadowRoot) {
@@ -336,7 +449,75 @@ class ResponseViewer extends HTMLElement {
       this.shadowRoot
         .querySelectorAll('.panel')
         .forEach((p) => p.classList.toggle('active', p.id === `panel-${name}`));
+      if (name === 'history') this.#loadHistory();
     });
+
+    this.shadowRoot.getElementById('history-clear-btn').addEventListener('click', async () => {
+      if (!this.#requestId) return;
+      await clearHistory(this.#requestId).catch(() => {});
+      this.#loadHistory();
+    });
+  }
+
+  setRequestId(id) {
+    this.#requestId = id;
+  }
+
+  async #loadHistory() {
+    if (!this.#requestId) return;
+    const entries = await listHistory(this.#requestId).catch(() => []);
+    const list = this.shadowRoot.getElementById('history-list');
+    const countLabel = this.shadowRoot.getElementById('history-count-label');
+    countLabel.textContent = t('res.historyCount', { count: entries.length });
+
+    if (!entries.length) {
+      list.innerHTML = `<div class="history-empty">${this.#escHtml(t('res.historyEmpty'))}</div>`;
+      return;
+    }
+
+    list.innerHTML = '';
+    for (const entry of entries) {
+      const row = document.createElement('div');
+      row.className = 'history-entry';
+
+      const statusCls = entry.status
+        ? entry.status >= 500
+          ? 's5xx'
+          : entry.status >= 400
+            ? 's4xx'
+            : entry.status >= 300
+              ? 's3xx'
+              : 's2xx'
+        : 'error';
+      const statusLabel = entry.status ?? 'ERR';
+      const color = METHOD_COLORS[entry.method] ?? 'inherit';
+      const time = new Date(entry.requestedAt).toLocaleTimeString(undefined, {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      });
+      const duration = entry.duration != null ? `${entry.duration}ms` : '';
+
+      row.innerHTML = `
+        <span class="history-method" style="color:${color}">${this.#escHtml(entry.method)}</span>
+        <span class="history-status ${statusCls}">${statusLabel}</span>
+        <span class="history-url">${this.#escHtml(entry.url)}</span>
+        <span class="history-meta">${duration}<br>${time}</span>
+      `;
+
+      row.addEventListener('click', () => {
+        // Switch to Body tab and show this historical response
+        this.shadowRoot.querySelectorAll('.tab').forEach((t) => {
+          t.classList.toggle('active', t.dataset.tab === 'body');
+        });
+        this.shadowRoot.querySelectorAll('.panel').forEach((p) => {
+          p.classList.toggle('active', p.id === 'panel-body');
+        });
+        this.setResponse(entry.response, { cached: true });
+      });
+
+      list.appendChild(row);
+    }
   }
 
   #bindCopyBody() {
@@ -375,6 +556,7 @@ class ResponseViewer extends HTMLElement {
     this.shadowRoot.getElementById('empty-state').style.display = 'none';
     this.shadowRoot.getElementById('body-content').style.display = 'none';
     this.shadowRoot.getElementById('error-body').style.display = 'none';
+    this.shadowRoot.getElementById('cancelled-state').style.display = 'none';
     this.shadowRoot.getElementById('loading-state').style.display = 'flex';
     this.shadowRoot.getElementById('preview-wrap').innerHTML =
       `<div class="preview-unsupported"><div>${t('res.noPreview')}</div></div>`;
@@ -386,6 +568,7 @@ class ResponseViewer extends HTMLElement {
     this.#lastCached = cached;
 
     const badge = this.shadowRoot.getElementById('status-badge');
+    const copyBtn = this.shadowRoot.getElementById('copy-body-btn');
     const emptyState = this.shadowRoot.getElementById('empty-state');
     const bodyContent = this.shadowRoot.getElementById('body-content');
     const errorBody = this.shadowRoot.getElementById('error-body');
@@ -393,10 +576,25 @@ class ResponseViewer extends HTMLElement {
 
     emptyState.style.display = 'none';
     this.shadowRoot.getElementById('loading-state').style.display = 'none';
+    this.shadowRoot.getElementById('cancelled-state').style.display = 'none';
+
+    if (response.cancelled) {
+      this.#rawBody = null;
+      copyBtn.disabled = true;
+      badge.className = 'status-badge visible';
+      badge.textContent = t('res.cancelled');
+      badge.style.background = 'var(--color-surface-3)';
+      badge.style.color = 'var(--color-text-secondary)';
+      this.shadowRoot.getElementById('meta').textContent = '';
+      bodyContent.style.display = 'none';
+      errorBody.style.display = 'none';
+      this.shadowRoot.getElementById('cancelled-state').style.display = 'flex';
+      return;
+    }
 
     if (response.error) {
       this.#rawBody = null;
-      this.shadowRoot.getElementById('copy-body-btn').disabled = true;
+      copyBtn.disabled = true;
       badge.className = 'status-badge visible error';
       badge.style.cssText = '';
       bodyContent.style.display = 'none';
@@ -419,7 +617,6 @@ class ResponseViewer extends HTMLElement {
     errorBody.style.display = 'none';
     bodyContent.style.display = 'block';
     this.#rawBody = response.body ?? '';
-    const copyBtn = this.shadowRoot.getElementById('copy-body-btn');
     copyBtn.disabled = false;
 
     const contentType = response.headers?.['content-type'] ?? '';

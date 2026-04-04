@@ -105,6 +105,7 @@ const TRANSLATIONS = {
     'req.authHeader': 'Header',
     'req.authQuery': 'Query Params',
     'req.authEmpty': '未配置认证',
+    'req.cancel': '取消',
 
     // response viewer
     'res.title': '响应',
@@ -126,6 +127,12 @@ const TRANSLATIONS = {
     'res.cached': '缓存',
     'res.durationLabel': '耗时',
     'res.sizeLabel': '大小',
+    'res.cancelled': '已取消',
+    'res.tabHistory': '历史',
+    'res.historyEmpty': '暂无历史记录',
+    'res.historyClear': '清除',
+    'res.historyCount': '{count} 条记录',
+    'res.binaryContent': '[二进制内容 · {type}]',
 
     // env manager
     'env.title': '环境变量',
@@ -263,6 +270,7 @@ const TRANSLATIONS = {
     'req.authHeader': 'Header',
     'req.authQuery': 'Query Params',
     'req.authEmpty': 'No authentication configured',
+    'req.cancel': 'Cancel',
 
     // response viewer
     'res.title': 'Response',
@@ -284,6 +292,12 @@ const TRANSLATIONS = {
     'res.cached': 'Cached',
     'res.durationLabel': 'Time',
     'res.sizeLabel': 'Size',
+    'res.cancelled': 'Cancelled',
+    'res.tabHistory': 'History',
+    'res.historyEmpty': 'No history yet',
+    'res.historyClear': 'Clear',
+    'res.historyCount': '{count} entries',
+    'res.binaryContent': '[Binary content · {type}]',
 
     // env manager
     'env.title': 'Environments',

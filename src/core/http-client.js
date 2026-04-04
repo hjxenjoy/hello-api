@@ -1,12 +1,15 @@
 // fetch wrapper - request sending, timing, error handling
 
+import { t } from './i18n.js';
+
 export async function sendRequest({
   method,
   url,
   headers = [],
   params = [],
   body = { type: 'none', content: '' },
-}) {
+  signal,
+} = {}) {
   // Build URL with query params
   let finalUrl = url;
   const enabledParams = params.filter((p) => p.enabled !== false && p.key);
@@ -74,6 +77,7 @@ export async function sendRequest({
       method,
       headers: headersObj,
       body: fetchBody,
+      signal,
     });
 
     const duration = Math.round(performance.now() - startTime);
@@ -94,7 +98,7 @@ export async function sendRequest({
       const blob = await response.blob();
       size = blob.size;
       blobUrl = URL.createObjectURL(blob);
-      bodyText = `[二进制内容 · ${contentType}]`;
+      bodyText = t('res.binaryContent', { type: contentType });
     } else {
       bodyText = await response.text();
       size = new TextEncoder().encode(bodyText).length;
@@ -111,6 +115,9 @@ export async function sendRequest({
     };
   } catch (err) {
     const duration = Math.round(performance.now() - startTime);
+    if (err.name === 'AbortError') {
+      return { cancelled: true, duration };
+    }
     let message = err.message;
     if (/Failed to fetch|NetworkError|Load failed|fetch/i.test(message)) {
       message +=

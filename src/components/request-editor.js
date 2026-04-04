@@ -6,6 +6,7 @@ const ICON_CURL = `<svg width="13" height="13" viewBox="0 0 13 13" fill="none" s
 import { sendRequest } from '../core/http-client.js';
 import { interpolateRequest, envToVariables } from '../core/interpolation.js';
 import { updateRequest, saveRequestResponse } from '../db/requests.js';
+import { addHistory } from '../db/history.js';
 import { t, applyI18n } from '../core/i18n.js';
 
 const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];
@@ -286,6 +287,21 @@ template.innerHTML = `
       background: var(--color-surface-3);
       border-color: var(--color-border-strong);
     }
+    .cancel-btn {
+      display: none;
+      padding: 6px 12px;
+      background: transparent;
+      color: var(--color-error);
+      border: 1px solid var(--color-error);
+      border-radius: 4px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+      white-space: nowrap;
+    }
+    .cancel-btn.visible { display: block; }
+    .cancel-btn:hover { background: var(--color-error-muted); }
     .cm-container {
       flex: 1;
       min-height: 120px;
@@ -459,6 +475,7 @@ template.innerHTML = `
     <select class="method" id="method-select"></select>
     <input class="url-input" id="url-input" placeholder="https://api.example.com/endpoint" />
     <button class="send-btn" id="send-btn" data-i18n="req.send">发送</button>
+    <button class="cancel-btn" id="cancel-btn" data-i18n="req.cancel">取消</button>
     <button class="curl-btn" id="curl-btn" data-i18n-title="req.copyAsCurl" title="复制为 cURL">${ICON_CURL}</button>
   </div>
   <div class="tabs" id="tabs">
@@ -504,6 +521,7 @@ class RequestEditor extends HTMLElement {
   #saveTimer = null;
   #cmEditor = null;
   #i18nHandler = null;
+  #abortController = null;
 
   connectedCallback() {
     if (!this.shadowRoot) {
@@ -638,6 +656,11 @@ class RequestEditor extends HTMLElement {
       this.#renderAuthPanel();
       this.#updateAuthDot();
       this.#scheduleSave();
+    });
+
+    // Cancel in-flight request
+    this.shadowRoot.getElementById('cancel-btn').addEventListener('click', () => {
+      this.#abortController?.abort();
     });
 
     // Copy as cURL
@@ -1068,9 +1091,12 @@ class RequestEditor extends HTMLElement {
   async #send() {
     if (!this.shadowRoot) return;
     const btn = this.shadowRoot.getElementById('send-btn');
+    const cancelBtn = this.shadowRoot.getElementById('cancel-btn');
     btn.disabled = true;
     btn.textContent = t('req.sending');
+    cancelBtn.classList.add('visible');
 
+    this.#abortController = new AbortController();
     this.dispatchEvent(new CustomEvent('request-sending', { bubbles: true, composed: true }));
 
     const req = this.#buildCurrentRequest();
@@ -1078,16 +1104,33 @@ class RequestEditor extends HTMLElement {
     const interpolated = interpolateRequest(req, vars);
     const withAuth = this.#applyAuth(interpolated);
 
-    const response = await sendRequest(withAuth);
+    const response = await sendRequest({ ...withAuth, signal: this.#abortController.signal });
 
     btn.disabled = false;
     btn.textContent = t('req.send');
+    cancelBtn.classList.remove('visible');
+    this.#abortController = null;
 
-    // Persist response to IndexedDB (strip blobUrl — it's a temporary object URL)
-    if (this.#request?.id && !response.error) {
+    // Persist and record history for non-cancelled responses
+    if (this.#request?.id && !response.cancelled) {
       const { blobUrl, ...storable } = response;
-      storable.requestedAt = Date.now();
-      saveRequestResponse(this.#request.id, storable).catch(() => {});
+      const requestedAt = Date.now();
+      storable.requestedAt = requestedAt;
+
+      if (!response.error) {
+        saveRequestResponse(this.#request.id, storable).catch(() => {});
+      }
+
+      addHistory({
+        requestId: this.#request.id,
+        requestedAt,
+        method: req.method,
+        url: req.url,
+        status: response.status ?? null,
+        duration: response.duration,
+        size: response.size ?? null,
+        response: storable,
+      }).catch(() => {});
     }
 
     this.dispatchEvent(

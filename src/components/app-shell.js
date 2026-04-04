@@ -428,8 +428,9 @@ class AppShell extends HTMLElement {
     const editor = workspace.querySelector('request-editor');
     editor.loadRequest(request, this.#currentEnvironment);
 
+    const viewer = workspace.querySelector('response-viewer');
+    viewer.setRequestId(request.id);
     if (request.lastResponse) {
-      const viewer = workspace.querySelector('response-viewer');
       viewer.setResponse(request.lastResponse, { cached: true });
     }
   }

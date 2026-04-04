@@ -1,7 +1,7 @@
 // IndexedDB initialization and schema version management
 
 const DB_NAME = 'hello-api-db';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let _db = null;
 
@@ -43,6 +43,13 @@ export function openDB() {
         });
         environments.createIndex('projectId', 'projectId', { unique: false });
         environments.createIndex('name', 'name', { unique: false });
+      }
+
+      // v2: request history
+      if (!db.objectStoreNames.contains('request_history')) {
+        const history = db.createObjectStore('request_history', { keyPath: 'id' });
+        history.createIndex('requestId', 'requestId', { unique: false });
+        history.createIndex('requestedAt', 'requestedAt', { unique: false });
       }
     };
 
