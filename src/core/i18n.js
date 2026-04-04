@@ -106,6 +106,16 @@ const TRANSLATIONS = {
     'req.authQuery': 'Query Params',
     'req.authEmpty': '未配置认证',
     'req.cancel': '取消',
+    'req.importCurlBtn': '从 cURL 导入',
+    'req.importCurlTitle': '从 cURL 导入',
+    'req.importCurlLabel': 'cURL 命令',
+    'req.importCurlPlaceholder': '粘贴 cURL 命令…',
+    'req.importCurlConfirm': '导入',
+    'req.importSuccess': '已从 cURL 导入',
+    'req.importError': '无法解析该 cURL 命令',
+    'req.jsonInvalidTitle': 'JSON 格式有误',
+    'req.jsonInvalidMsg': '请求 Body 不是合法的 JSON，是否仍然发送？',
+    'req.jsonInvalidSend': '仍然发送',
 
     // response viewer
     'res.title': '响应',
@@ -271,6 +281,16 @@ const TRANSLATIONS = {
     'req.authQuery': 'Query Params',
     'req.authEmpty': 'No authentication configured',
     'req.cancel': 'Cancel',
+    'req.importCurlBtn': 'Import from cURL',
+    'req.importCurlTitle': 'Import from cURL',
+    'req.importCurlLabel': 'cURL Command',
+    'req.importCurlPlaceholder': 'Paste curl command…',
+    'req.importCurlConfirm': 'Import',
+    'req.importSuccess': 'Imported from cURL',
+    'req.importError': 'Could not parse cURL command',
+    'req.jsonInvalidTitle': 'Invalid JSON',
+    'req.jsonInvalidMsg': 'The request body is not valid JSON. Send anyway?',
+    'req.jsonInvalidSend': 'Send Anyway',
 
     // response viewer
     'res.title': 'Response',

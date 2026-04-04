@@ -2,11 +2,14 @@
 
 const ICON_CROSS = `<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M2 2l6 6M8 2l-6 6"/></svg>`;
 const ICON_CURL = `<svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1.5" y="2" width="10" height="9" rx="1.5"/><path d="M3.5 6.5l2 1.5-2 1.5"/><path d="M7.5 9.5h2"/></svg>`;
+const ICON_CURL_IN = `<svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1.5" y="2" width="10" height="9" rx="1.5"/><path d="M6.5 4.5v4"/><path d="M4.5 7l2 2 2-2"/></svg>`;
 
 import { sendRequest } from '../core/http-client.js';
 import { interpolateRequest, envToVariables } from '../core/interpolation.js';
 import { updateRequest, saveRequestResponse } from '../db/requests.js';
 import { addHistory } from '../db/history.js';
+import { parseCurl } from '../core/curl-parser.js';
+import { showConfirm, showForm } from '../core/dialog.js';
 import { t, applyI18n } from '../core/i18n.js';
 
 const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];
@@ -287,6 +290,44 @@ template.innerHTML = `
       background: var(--color-surface-3);
       border-color: var(--color-border-strong);
     }
+    .curl-import-btn {
+      padding: 6px 10px;
+      background: var(--color-surface-2);
+      color: var(--color-text-secondary);
+      border: 1px solid var(--color-border);
+      border-radius: 4px;
+      font-size: 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .curl-import-btn:hover {
+      color: var(--color-text-primary);
+      background: var(--color-surface-3);
+      border-color: var(--color-border-strong);
+    }
+    .import-notice {
+      padding: 4px 12px;
+      font-size: 11px;
+      font-weight: 500;
+      flex-shrink: 0;
+      display: none;
+    }
+    .import-notice.success {
+      display: block;
+      color: #22c55e;
+      background: rgba(34, 197, 94, 0.08);
+      border-bottom: 1px solid rgba(34, 197, 94, 0.2);
+    }
+    .import-notice.error {
+      display: block;
+      color: var(--color-error);
+      background: var(--color-error-muted);
+      border-bottom: 1px solid rgba(239, 68, 68, 0.2);
+    }
     .cancel-btn {
       display: none;
       padding: 6px 12px;
@@ -477,7 +518,9 @@ template.innerHTML = `
     <button class="send-btn" id="send-btn" data-i18n="req.send">发送</button>
     <button class="cancel-btn" id="cancel-btn" data-i18n="req.cancel">取消</button>
     <button class="curl-btn" id="curl-btn" data-i18n-title="req.copyAsCurl" title="复制为 cURL">${ICON_CURL}</button>
+    <button class="curl-import-btn" id="curl-import-btn" data-i18n-title="req.importCurlBtn" title="从 cURL 导入">${ICON_CURL_IN}</button>
   </div>
+  <div class="import-notice" id="import-notice"></div>
   <div class="tabs" id="tabs">
     <div class="tab active" data-tab="params">Params</div>
     <div class="tab" data-tab="headers">Headers</div>
@@ -661,6 +704,32 @@ class RequestEditor extends HTMLElement {
     // Cancel in-flight request
     this.shadowRoot.getElementById('cancel-btn').addEventListener('click', () => {
       this.#abortController?.abort();
+    });
+
+    // Import from cURL — button opens dialog
+    this.shadowRoot.getElementById('curl-import-btn').addEventListener('click', async () => {
+      const result = await showForm(
+        t('req.importCurlTitle'),
+        [
+          {
+            id: 'curl',
+            label: t('req.importCurlLabel'),
+            placeholder: t('req.importCurlPlaceholder'),
+            type: 'textarea',
+          },
+        ],
+        { confirmLabel: t('req.importCurlConfirm') }
+      );
+      if (result?.curl) this.#importFromCurl(result.curl);
+    });
+
+    // Import from cURL — paste detection in URL input
+    this.shadowRoot.getElementById('url-input').addEventListener('paste', (e) => {
+      const text = e.clipboardData?.getData('text') ?? '';
+      if (/^curl\b/i.test(text.trim())) {
+        e.preventDefault();
+        this.#importFromCurl(text);
+      }
     });
 
     // Copy as cURL
@@ -1100,6 +1169,26 @@ class RequestEditor extends HTMLElement {
     this.dispatchEvent(new CustomEvent('request-sending', { bubbles: true, composed: true }));
 
     const req = this.#buildCurrentRequest();
+
+    // Validate JSON body before sending
+    if (req.body?.type === 'json' && req.body?.content?.trim()) {
+      try {
+        JSON.parse(req.body.content);
+      } catch {
+        const confirmed = await showConfirm(t('req.jsonInvalidMsg'), {
+          title: t('req.jsonInvalidTitle'),
+          confirmLabel: t('req.jsonInvalidSend'),
+        });
+        if (!confirmed) {
+          btn.disabled = false;
+          btn.textContent = t('req.send');
+          cancelBtn.classList.remove('visible');
+          this.#abortController = null;
+          return;
+        }
+      }
+    }
+
     const vars = envToVariables(this.#environment);
     const interpolated = interpolateRequest(req, vars);
     const withAuth = this.#applyAuth(interpolated);
@@ -1306,6 +1395,74 @@ class RequestEditor extends HTMLElement {
     }
 
     return { ...req, headers, params };
+  }
+
+  #importFromCurl(curlStr) {
+    const parsed = parseCurl(curlStr);
+    if (!parsed || !this.#request) {
+      this.#showImportNotice(false);
+      return;
+    }
+
+    // Apply parsed values onto the current request
+    this.#request.method = parsed.method;
+    this.#request.url = parsed.url;
+    this.#request.headers = parsed.headers;
+    this.#request.params = parsed.params;
+    this.#request.body = parsed.body;
+    this.#request.auth = parsed.auth;
+
+    // Keep name in sync if it was auto-derived
+    if (this.#request.nameIsAuto) {
+      this.#request.name = parsed.url;
+      this.shadowRoot.getElementById('name-input').value = parsed.url;
+    }
+
+    // Update method select
+    const sel = this.shadowRoot.getElementById('method-select');
+    sel.value = parsed.method;
+    sel.style.color = METHOD_COLORS[parsed.method] ?? 'inherit';
+
+    // Update URL input
+    this.shadowRoot.getElementById('url-input').value = parsed.url;
+
+    // Re-render KV lists
+    this.#renderKvList('params');
+    this.#renderKvList('headers');
+
+    // Destroy CodeMirror if present so it reloads with new content
+    if (this.#cmEditor) {
+      this.#cmEditor.destroy();
+      this.#cmEditor = null;
+    }
+
+    // Sync body type buttons
+    this.shadowRoot.querySelectorAll('.body-type-btn').forEach((b) => {
+      b.classList.toggle('active', b.dataset.type === parsed.body.type);
+    });
+    if (this.shadowRoot.getElementById('panel-body')?.classList.contains('active')) {
+      this.#renderBodyArea();
+    }
+
+    // Sync auth panel if visible
+    if (this.shadowRoot.getElementById('panel-auth')?.classList.contains('active')) {
+      this.#renderAuthPanel();
+    }
+    this.#updateAuthDot();
+
+    this.#showImportNotice(true);
+    this.#scheduleSave();
+  }
+
+  #showImportNotice(success) {
+    const notice = this.shadowRoot.getElementById('import-notice');
+    if (!notice) return;
+    notice.textContent = success ? t('req.importSuccess') : t('req.importError');
+    notice.className = `import-notice ${success ? 'success' : 'error'}`;
+    clearTimeout(this._noticeTimer);
+    this._noticeTimer = setTimeout(() => {
+      notice.className = 'import-notice';
+    }, 2500);
   }
 
   #buildCurlCommand() {

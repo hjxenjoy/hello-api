@@ -28,6 +28,7 @@ const STATIC_ASSETS = [
   '/src/db/history.js',
   '/src/core/http-client.js',
   '/src/core/interpolation.js',
+  '/src/core/curl-parser.js',
   '/src/core/storage-stats.js',
   '/src/core/dialog.js',
   '/manifest.json',
